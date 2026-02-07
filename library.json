@@ -1,8 +1,8 @@
 {
 	"id": "{1A9A8E9E-93Fb-404B-8653-F0EE8052E925}",
-	"author": "Daniel Schäfer",
+	"author": "Daniel Schaefer",
 	"name": "LG WebOS Module",
-	"url": "https://git.schaefer2.de/daniel/symconwebos.git",
+	"url": "https://github.com/daschaefer/SymconWebOS.git",
 	"compatibility": {
         "version": "8.2"
     },

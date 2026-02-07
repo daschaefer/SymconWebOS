@@ -4,7 +4,7 @@
 	"name": "LG WebOS Module",
 	"url": "https://github.com/daschaefer/SymconWebOS.git",
 	"compatibility": {
-        "version": "8.2"
+        "version": "8.1"
     },
 	"version": "1.0",
 	"build": 0,

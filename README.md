@@ -4,7 +4,7 @@ Dieses IP-Symcon PHP Modul ermöglicht die Interaktion mit WebOS basierten LG Ge
 
 Vorraussetzungen:
 - Ein LG WebOS Gerät (z.B. Fernseher, Soundbar) mit Netzwerkverbindung
-- IP-Symcon Version 8.2 oder höher
+- IP-Symcon Version 8.1 oder höher
 
 Funktionen:
 - Ein- und Ausschalten des Geräts

@@ -1,0 +1,18 @@
+{
+	"elements":
+	[
+        { "name": "DEVICE_IP",      "type": "ValidationTextBox",    "caption": "IP-Adresse:" },
+        { "name": "DEVICE_PORT",    "type": "NumberSpinner",        "caption": "Port:" },
+        { "name": "LOGLEVEL",       "type": "Select",               "caption": "Log-Level:",
+            "options": [
+                { "caption": "Aus", "value": 0 },
+                { "caption": "Debug", "value": 1 }
+            ]
+        }
+    ],
+    "actions":
+    [
+        { "type": "Button", "label": "Gerät registrieren", "onClick": "WEBOS_RegisterDevice($id);" },
+        { "type": "Button", "label": "Geräteverbindung testen", "onClick": "WEBOS_Test($id);" }
+    ]
+}

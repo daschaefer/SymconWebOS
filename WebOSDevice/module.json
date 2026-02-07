@@ -1,0 +1,14 @@
+{
+	"id": "{4E7979D8-52BE-43A9-9B4D-BDD8702D67ED}",
+	"name": "WebOSDevice",
+	"type": 3,
+	"vendor": "LG",
+	"aliases": 
+	[
+		"WebOS Device"
+	],
+	"parentRequirements": [],
+	"childRequirements": [],
+	"implemented": [],
+	"prefix": "WEBOS"
+}

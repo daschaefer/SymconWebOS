@@ -2,6 +2,7 @@
 	"elements":
 	[
         { "name": "DEVICE_IP",      "type": "ValidationTextBox",    "caption": "IP-Adresse:" },
+        { "name": "DEVICE_MAC",     "type": "ValidationTextBox",    "caption": "MAC-Adresse (z.B. AA:BB:CC:DD:EE:FF):" },
         { "name": "DEVICE_PORT",    "type": "NumberSpinner",        "caption": "Port:" },
         { "name": "LOGLEVEL",       "type": "Select",               "caption": "Log-Level:",
             "options": [

@@ -20,6 +20,7 @@ class WebOSDevice extends IPSModule
         
         // Public properties
         $this->RegisterPropertyString("DEVICE_IP", "");
+        $this->RegisterPropertyString("DEVICE_MAC", "");
         $this->RegisterPropertyInteger("DEVICE_PORT", "3001");
         $this->RegisterPropertyString("DEVICE_CODE", "");
         $this->RegisterPropertyString("DEVICE_WSKEY", base64_encode($this->generateRandomString(16, false, true)));
@@ -329,9 +330,33 @@ class WebOSDevice extends IPSModule
                 $response = $this->send_command($command);
                 break;
             case 'PowerOn':
-                // TODO: WOL
-                $command = '{"id":"powerOn","type":"request","uri":"ssap://system/turnOn"}';
-                $response = $this->send_command($command);
+                $mac = IPS_GetProperty($this->InstanceID, "DEVICE_MAC");
+                if (!$mac || strlen(trim($mac)) == 0) {
+                    $this->Log("PowerOn: No MAC address configured for WOL, aborting.");
+                    return null;
+                }
+                $mac_clean = preg_replace('/[^0-9A-Fa-f]/', '', $mac);
+                if (strlen($mac_clean) != 12) {
+                    $this->Log("PowerOn: Invalid MAC address format: " . $mac . ", aborting WOL.");
+                    return null;
+                }
+                $hw = pack('H*', $mac_clean);
+                $packet = str_repeat(chr(0xFF), 6) . str_repeat($hw, 16);
+                $port = 9;
+                $sock = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
+                if ($sock === false) {
+                    $this->Log("PowerOn: Failed to create socket for WOL.");
+                    return null;
+                }
+                socket_set_option($sock, SOL_SOCKET, SO_BROADCAST, 1);
+                $sent = @socket_sendto($sock, $packet, strlen($packet), 0, '255.255.255.255', $port);
+                socket_close($sock);
+                if ($sent === false) {
+                    $this->Log("PowerOn: WOL packet failed to send.");
+                    return null;
+                }
+                $this->Log("PowerOn: WOL packet sent to MAC " . $mac);
+                $response = true;
                 break;
             case 'CurrentPowerState':
                 $command = '{"id":"currentPowerState","type":"request","uri":"ssap://com.webos.service.tvpower/power/getPowerState"}';

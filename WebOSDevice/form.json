@@ -11,6 +11,11 @@
             "caption": "MAC-Adresse (z.B. AA:BB:CC:DD:EE:FF):"
         },
         {
+            "name": "WOL_BROADCAST",
+            "type": "ValidationTextBox",
+            "caption": "Broadcast-Adresse für Einschalten (leer = automatisch, z.B. 192.168.2.255)"
+        },
+        {
             "name": "DEVICE_PORT",
             "type": "NumberSpinner",
             "caption": "Port:"
@@ -75,6 +80,11 @@
                     "name": "VAR_SOUNDOUTPUT",
                     "type": "CheckBox",
                     "caption": "Tonausgabe (TV-Lautsprecher, ARC, Optisch, Bluetooth)"
+                },
+                {
+                    "name": "VAR_NOTIFY",
+                    "type": "CheckBox",
+                    "caption": "Meldung an TV (Text eintragen = Einblendung am TV, z.B. aus Ablaufplänen)"
                 }
             ]
         },
@@ -170,13 +180,28 @@
                 {
                     "name": "WEBFRONT_HEIGHT",
                     "type": "NumberSpinner",
-                    "caption": "Höhe im WebFront",
+                    "caption": "Höhe im WebFront (0 = automatisch, passt sich Handy/Tablet an)",
                     "suffix": "px",
-                    "minimum": 200
+                    "minimum": 0
                 },
                 {
                     "type": "Label",
                     "caption": "Apps und Eingänge mit Häkchen erscheinen in beiden Varianten als Schnellwahl."
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Meldungen auf dem TV",
+            "items": [
+                {
+                    "name": "NOTIFY_ICON",
+                    "type": "SelectMedia",
+                    "caption": "Standard-Symbol für Meldungen (optional)"
+                },
+                {
+                    "type": "Label",
+                    "caption": "In Skripten: WEBOS_Notify($id, \"Text\"), WEBOS_NotifyIcon($id, \"Text\", MedienID/Datei/URL), WEBOS_Alert($id, \"Titel\", \"Text\", Sekunden)"
                 }
             ]
         },
@@ -216,6 +241,33 @@
             "type": "Button",
             "label": "Eingänge und Apps neu einlesen",
             "onClick": "WEBOS_RefreshLists($id);"
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Meldung testen",
+            "items": [
+                {
+                    "type": "ValidationTextBox",
+                    "name": "TestMessage",
+                    "caption": "Text",
+                    "value": "Hallo vom Symcon!"
+                },
+                {
+                    "type": "RowLayout",
+                    "items": [
+                        {
+                            "type": "Button",
+                            "caption": "Einblendung senden",
+                            "onClick": "WEBOS_Notify($id, $TestMessage);"
+                        },
+                        {
+                            "type": "Button",
+                            "caption": "Hinweisfenster (10 s)",
+                            "onClick": "WEBOS_Alert($id, 'Symcon', $TestMessage, 10);"
+                        }
+                    ]
+                }
+            ]
         }
     ],
     "status": [

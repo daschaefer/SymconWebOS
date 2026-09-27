@@ -62,6 +62,7 @@ class WebOSDevice extends IPSModule
         // Public properties
         $this->RegisterPropertyString("DEVICE_IP", "");
         $this->RegisterPropertyString("DEVICE_MAC", "");
+        $this->RegisterPropertyString("WOL_BROADCAST", ""); // optional broadcast address for Wake-on-LAN (empty = automatic)
         $this->RegisterPropertyInteger("DEVICE_PORT", 3001);
         $this->RegisterPropertyString("DEVICE_CODE", "");
         $this->RegisterPropertyString("DEVICE_WSKEY", base64_encode($this->generateRandomString(16, false, true))); // unused, kept for compatibility
@@ -81,13 +82,17 @@ class WebOSDevice extends IPSModule
         $this->RegisterPropertyBoolean("VAR_MEDIA", false);
         $this->RegisterPropertyBoolean("VAR_CHANNEL", false);
         $this->RegisterPropertyBoolean("VAR_SOUNDOUTPUT", false);
+        $this->RegisterPropertyBoolean("VAR_NOTIFY", false);
+
+        // Notifications on the TV: default icon (media object, 0 = none)
+        $this->RegisterPropertyInteger("NOTIFY_ICON", 0);
 
         // Show the instance as remote control tile (HTML-SDK, tile visualization)
         $this->RegisterPropertyBoolean("TILE_REMOTE", false);
 
         // Remote control for the classic WebFront (HTMLBox variable + WebHook)
         $this->RegisterPropertyBoolean("WEBFRONT_REMOTE", false);
-        $this->RegisterPropertyInteger("WEBFRONT_HEIGHT", 620);
+        $this->RegisterPropertyInteger("WEBFRONT_HEIGHT", 0); // 0 = automatic (fits width and screen height, e.g. on phones)
 
         // Private properties
         $this->RegisterPropertyString("DEVICE_PATH", "/");
@@ -156,6 +161,7 @@ class WebOSDevice extends IPSModule
         $this->maintainVar('ChannelName',    'Aktueller Sender',   3, '',                         60, 'VAR_CHANNEL',     false);
         $this->maintainVar('ChannelControl', 'Sender wechseln',    1, 'WEBOS.Channel',            61, 'VAR_CHANNEL',     true);
         $this->maintainVar('SoundOutput',    'Tonausgabe',         1, 'WEBOS.SoundOutput',        70, 'VAR_SOUNDOUTPUT', true);
+        $this->maintainVar('Notification',   'Meldung an TV',      3, '',                         75, 'VAR_NOTIFY',      true);
         $this->maintainVar('RemoteHTML',     'Fernbedienung',      3, '~HTMLBox',                 80, 'WEBFRONT_REMOTE', false);
 
         // Classic WebFront: WebHook delivers the remote, the HTMLBox embeds it
@@ -165,7 +171,14 @@ class WebOSDevice extends IPSModule
             } else {
                 $this->RegisterMessage(0, IPS_KERNELSTARTED);
             }
-            $this->setVar('RemoteHTML', '<iframe src="' . $this->hookName() . '" style="width:100%;height:' . max(200, $this->ReadPropertyInteger('WEBFRONT_HEIGHT')) . 'px;border:0;background:transparent" allowtransparency="true"></iframe>');
+            $height = $this->ReadPropertyInteger('WEBFRONT_HEIGHT');
+            if ($height > 0) {
+                $size = 'height:' . max(200, $height) . 'px';
+            } else {
+                // automatic: portrait proportions of the remote, but never higher than the screen
+                $size = 'aspect-ratio:25/61;height:auto;max-height:92vh;min-height:320px';
+            }
+            $this->setVar('RemoteHTML', '<iframe src="' . $this->hookName() . '" style="display:block;width:100%;' . $size . ';border:0;background:transparent" allowtransparency="true"></iframe>');
         }
 
         // Polling
@@ -345,6 +358,21 @@ class WebOSDevice extends IPSModule
         return $this->RequestAction('Muted', $Value);
     }
 
+    // Shows a short message on the TV (bottom left, disappears after a few seconds)
+    public function Notify(string $Message) {
+        return $this->sendToast($Message, '');
+    }
+
+    // Same with an icon: media object ID (e.g. camera snapshot), file path or URL (png/jpg)
+    public function NotifyIcon(string $Message, string $Icon) {
+        return $this->sendToast($Message, $Icon);
+    }
+
+    // Shows a dialog with title, text and OK button. $Seconds > 0: closes automatically after this time (max. 60)
+    public function Alert(string $Title, string $Message, int $Seconds) {
+        return $this->sendAlert($Title, $Message, $Seconds);
+    }
+
     public function PowerOn() {
         return $this->RequestAction('PowerOn', '');
     }
@@ -520,6 +548,10 @@ class WebOSDevice extends IPSModule
                     $response = $this->ssap('ssap://media.controls/' . self::MEDIA_CONTROLS[$Value][0]);
                 }
                 break;
+            case 'Notification':
+                $response = $this->sendToast((string)$Value, '');
+                $this->setVar('Notification', (string)$Value);
+                break;
             case 'VolumeStep':
                 $response = $this->RequestAction($Value ? 'VolumeUp' : 'VolumeDown', '');
                 break;
@@ -681,33 +713,7 @@ class WebOSDevice extends IPSModule
                 $response = $this->send_command($command);
                 break;
             case 'PowerOn':
-                $mac = $this->ReadPropertyString("DEVICE_MAC");
-                if (!$mac || strlen(trim($mac)) == 0) {
-                    $this->Log("PowerOn: No MAC address configured for WOL, aborting.");
-                    return null;
-                }
-                $mac_clean = preg_replace('/[^0-9A-Fa-f]/', '', $mac);
-                if (strlen($mac_clean) != 12) {
-                    $this->Log("PowerOn: Invalid MAC address format: " . $mac . ", aborting WOL.");
-                    return null;
-                }
-                $hw = pack('H*', $mac_clean);
-                $packet = str_repeat(chr(0xFF), 6) . str_repeat($hw, 16);
-                $port = 9;
-                $sock = socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
-                if ($sock === false) {
-                    $this->Log("PowerOn: Failed to create socket for WOL.");
-                    return null;
-                }
-                socket_set_option($sock, SOL_SOCKET, SO_BROADCAST, 1);
-                $sent = @socket_sendto($sock, $packet, strlen($packet), 0, '255.255.255.255', $port);
-                socket_close($sock);
-                if ($sent === false) {
-                    $this->Log("PowerOn: WOL packet failed to send.");
-                    return null;
-                }
-                $this->Log("PowerOn: WOL packet sent to MAC " . $mac);
-                $response = true;
+                $response = $this->sendWakeOnLan();
                 break;
             case 'CurrentPowerState':
                 $command = '{"id":"currentPowerState","type":"request","uri":"ssap://com.webos.service.tvpower/power/getPowerState"}';
@@ -716,7 +722,7 @@ class WebOSDevice extends IPSModule
 
             // Misc
             case 'Message':
-                $response = $this->ssap('ssap://system.notifications/createToast', ['message' => (string)$Value]);
+                $response = $this->sendToast((string)$Value, '');
                 break;
 
             case 'SystemInfo': // TODO: 404 insufficient permissions
@@ -734,6 +740,150 @@ class WebOSDevice extends IPSModule
     }
 
     // PRIVATE FUNCTIONS
+
+    // ---------- Wake-on-LAN ----------
+
+    // Sends the magic packet several times to several targets, so that the TV also wakes up from deep standby:
+    // configured broadcast address, subnet broadcast of the TV (x.x.x.255), the TV itself and 255.255.255.255 - each on port 9 and 7.
+    private function sendWakeOnLan()
+    {
+        $mac = trim($this->ReadPropertyString("DEVICE_MAC"));
+        $macClean = preg_replace('/[^0-9A-Fa-f]/', '', $mac);
+        if (strlen($macClean) != 12) {
+            $this->Log("PowerOn: No or invalid MAC address configured for Wake-on-LAN: '$mac'");
+            return null;
+        }
+        $packet = str_repeat(chr(0xFF), 6) . str_repeat(pack('H*', $macClean), 16);
+
+        $targets = [];
+        $broadcast = trim($this->ReadPropertyString("WOL_BROADCAST"));
+        if (filter_var($broadcast, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            $targets[] = $broadcast;
+        }
+        $ip = trim($this->ReadPropertyString("DEVICE_IP"));
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            $parts = explode('.', $ip);
+            $parts[3] = '255';
+            $targets[] = implode('.', $parts);
+            $targets[] = $ip;
+        }
+        $targets[] = '255.255.255.255';
+        $targets = array_values(array_unique($targets));
+
+        $sock = @socket_create(AF_INET, SOCK_DGRAM, SOL_UDP);
+        if ($sock === false) {
+            $this->Log("PowerOn: Failed to create socket for Wake-on-LAN.");
+            return null;
+        }
+        socket_set_option($sock, SOL_SOCKET, SO_BROADCAST, 1);
+        $sent = 0;
+        for ($round = 0; $round < 3; $round++) {
+            foreach ($targets as $target) {
+                foreach ([9, 7] as $port) {
+                    if (@socket_sendto($sock, $packet, strlen($packet), 0, $target, $port) !== false) {
+                        $sent++;
+                    }
+                }
+            }
+            usleep(150000);
+        }
+        socket_close($sock);
+
+        if ($sent == 0) {
+            $this->Log("PowerOn: Wake-on-LAN packets could not be sent.");
+            return null;
+        }
+        $this->Log("PowerOn: $sent Wake-on-LAN packets sent to MAC $mac (" . implode(', ', $targets) . ")");
+        return true;
+    }
+
+    // ---------- Notifications ----------
+
+    private function sendToast($Message, $Icon)
+    {
+        $payload = ['message' => mb_substr(trim($Message), 0, 250), 'iconData' => '', 'iconExtension' => ''];
+        if ($Icon === '' && $this->ReadPropertyInteger('NOTIFY_ICON') > 0) {
+            $Icon = (string)$this->ReadPropertyInteger('NOTIFY_ICON');
+        }
+        if ($Icon !== '') {
+            $icon = $this->loadIcon($Icon);
+            if ($icon !== null) {
+                $payload['iconData'] = $icon[0];
+                $payload['iconExtension'] = $icon[1];
+            }
+        }
+        $res = $this->ssap('ssap://system.notifications/createToast', $payload);
+        if ($res === null) {
+            $this->Log("Notification could not be shown (TV off?)");
+        }
+        return $res !== null;
+    }
+
+    private function sendAlert($Title, $Message, $Seconds)
+    {
+        $payload = [
+            'title'   => trim($Title),
+            'message' => trim($Message),
+            'modal'   => false,
+            'buttons' => [['label' => 'OK', 'focus' => true]]
+        ];
+        $res = $this->ssap('ssap://system.notifications/createAlert', $payload);
+        if ($res === null) {
+            // e.g. no permission on this TV -> fall back to a normal message
+            $this->Log("Alert not possible, sending toast instead");
+            return $this->sendToast(trim($Title . ': ' . $Message, ': '), '');
+        }
+        $alertId = $res['alertId'] ?? '';
+        $Seconds = min(60, max(0, (int)$Seconds));
+        if ($Seconds > 0 && $alertId !== '') {
+            // keep the connection open and close the dialog afterwards
+            $end = microtime(true) + $Seconds;
+            while (microtime(true) < $end && $this->connected) {
+                $this->readMessage($this->sock, min($end, microtime(true) + 1)); // answers pings while waiting
+            }
+            $this->ssap('ssap://system.notifications/closeAlert', ['alertId' => $alertId]);
+        }
+        return true;
+    }
+
+    // Returns [base64, extension] of a small icon or null. $Icon: media ID, file path or URL
+    private function loadIcon($Icon)
+    {
+        $data = false;
+        if (ctype_digit($Icon) && @IPS_MediaExists((int)$Icon)) {
+            $data = base64_decode(IPS_GetMediaContent((int)$Icon));
+        } elseif (preg_match('#^https?://#i', $Icon)) {
+            $ctx = stream_context_create(['http' => ['timeout' => 4], 'ssl' => ['verify_peer' => false, 'verify_peer_name' => false]]);
+            $data = @file_get_contents($Icon, false, $ctx);
+        } elseif (is_file($Icon)) {
+            $data = @file_get_contents($Icon);
+        }
+        if ($data === false || $data === '') {
+            $this->Log("Icon could not be loaded: $Icon");
+            return null;
+        }
+        // Scale down to a small PNG if GD is available (toast icons are small, big images slow things down)
+        if (function_exists('imagecreatefromstring')) {
+            $img = @imagecreatefromstring($data);
+            if ($img !== false) {
+                $w = imagesx($img);
+                $h = imagesy($img);
+                $scale = min(1, 96 / max($w, $h));
+                $nw = max(1, (int)round($w * $scale));
+                $nh = max(1, (int)round($h * $scale));
+                $dst = imagecreatetruecolor($nw, $nh);
+                imagealphablending($dst, false);
+                imagesavealpha($dst, true);
+                imagecopyresampled($dst, $img, 0, 0, 0, 0, $nw, $nh, $w, $h);
+                ob_start();
+                imagepng($dst);
+                $png = ob_get_clean();
+                return [base64_encode($png), 'png'];
+            }
+        }
+        $ext = (substr($data, 0, 4) == "\x89PNG") ? 'png' : 'jpg';
+        return [base64_encode($data), $ext];
+    }
 
     // ---------- Remote control tile (HTML-SDK) ----------
 

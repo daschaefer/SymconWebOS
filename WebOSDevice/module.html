@@ -21,6 +21,8 @@
         font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         -webkit-user-select: none; user-select: none;
         -webkit-tap-highlight-color: transparent;
+        -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
+        touch-action: manipulation; /* no double-tap zoom on phones */
     }
     #stage { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
     #remote {
@@ -281,7 +283,7 @@
         remote.classList.toggle('wide', W / Math.max(H, 1) > 1.25);
         remote.style.transform = 'none';
         var w = remote.offsetWidth, h = remote.offsetHeight;
-        var s = Math.min((W - 8) / w, (H - 8) / h);
+        var s = Math.min((W - 8) / w, (H - 8) / h, 2.2);
         remote.style.transform = 'scale(' + Math.max(0.2, s) + ')';
     }
     window.addEventListener('resize', fit);

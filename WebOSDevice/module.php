@@ -6,6 +6,7 @@ class WebOSDevice extends IPSModule
     private $connected = false;
     private $registered = false;
     private $msgCounter = 0;
+    private $lastError = '';
 
     // Signed registration manifest (LG test certificate). Accepted by webOS up to 25,
     // rejected by webOS 26+ ("blacklisted certificate") -> unsigned fallback, see buildUnsignedHandshake().
@@ -808,16 +809,27 @@ class WebOSDevice extends IPSModule
         if ($Icon === '' && $this->ReadPropertyInteger('NOTIFY_ICON') > 0) {
             $Icon = (string)$this->ReadPropertyInteger('NOTIFY_ICON');
         }
+        $withIcon = false;
         if ($Icon !== '') {
             $icon = $this->loadIcon($Icon);
             if ($icon !== null) {
                 $payload['iconData'] = $icon[0];
                 $payload['iconExtension'] = $icon[1];
+                $withIcon = true;
+                $this->Log("Notification icon: " . strlen($icon[0]) . " characters, " . $icon[1]);
             }
         }
+        $this->lastError = '';
         $res = $this->ssap('ssap://system.notifications/createToast', $payload);
+        if ($res === null && $withIcon) {
+            // TV rejected the message with icon -> send the text alone so it is not lost
+            $this->Log("TV rejected notification with icon (" . ($this->lastError ?: 'no answer') . ") - sending text only");
+            $payload['iconData'] = '';
+            $payload['iconExtension'] = '';
+            $res = $this->ssap('ssap://system.notifications/createToast', $payload);
+        }
         if ($res === null) {
-            $this->Log("Notification could not be shown (TV off?)");
+            $this->Log("Notification could not be shown (TV off?) " . $this->lastError);
         }
         return $res !== null;
     }
@@ -871,7 +883,7 @@ class WebOSDevice extends IPSModule
             if ($img !== false) {
                 $w = imagesx($img);
                 $h = imagesy($img);
-                $scale = min(1, 96 / max($w, $h));
+                $scale = min(1, 80 / max($w, $h));
                 $nw = max(1, (int)round($w * $scale));
                 $nh = max(1, (int)round($h * $scale));
                 $dst = imagecreatetruecolor($nw, $nh);
@@ -1548,7 +1560,7 @@ class WebOSDevice extends IPSModule
             $msg['payload'] = $payload;
         }
         $json = json_encode($msg, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        $this->Log("Sending command: $json");
+        $this->Log("Sending command: " . (strlen($json) > 600 ? substr($json, 0, 300) . ' … (' . strlen($json) . ' bytes)' : $json));
         if (!$this->sendFrame($this->sock, $json)) {
             $this->disconnect();
             return null;
@@ -1559,7 +1571,8 @@ class WebOSDevice extends IPSModule
             return null;
         }
         if (($res['type'] ?? '') == 'error') {
-            $this->Log("Error for $uri: " . ($res['error'] ?? ''));
+            $this->lastError = (string)($res['error'] ?? '');
+            $this->Log("Error for $uri: " . $this->lastError);
             return null;
         }
         return $res['payload'] ?? [];

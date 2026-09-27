@@ -151,16 +151,32 @@
         },
         {
             "type": "ExpansionPanel",
-            "caption": "Kachel-Visualisierung",
+            "caption": "Fernbedienung (Visualisierung)",
             "items": [
                 {
                     "name": "TILE_REMOTE",
                     "type": "CheckBox",
-                    "caption": "Instanz als Fernbedienung darstellen (Kachel)"
+                    "caption": "Kachel-Visualisierung: Instanz als Fernbedienung darstellen"
                 },
                 {
                     "type": "Label",
-                    "caption": "Die Instanz in der Kachel-Visualisierung verlinken und die Kachel groß genug ziehen (hochkant oder breit). Apps und Eingänge mit Häkchen erscheinen als Schnellwahl."
+                    "caption": "Die Instanz in der Kachel-Visualisierung verlinken und die Kachel groß genug ziehen (hochkant oder breit)."
+                },
+                {
+                    "name": "WEBFRONT_REMOTE",
+                    "type": "CheckBox",
+                    "caption": "Altes WebFront: Variable \"Fernbedienung\" (HTMLBox) anlegen"
+                },
+                {
+                    "name": "WEBFRONT_HEIGHT",
+                    "type": "NumberSpinner",
+                    "caption": "Höhe im WebFront",
+                    "suffix": "px",
+                    "minimum": 200
+                },
+                {
+                    "type": "Label",
+                    "caption": "Apps und Eingänge mit Häkchen erscheinen in beiden Varianten als Schnellwahl."
                 }
             ]
         },

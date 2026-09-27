@@ -28,6 +28,7 @@ Fernbedienungs-Kachel:
 - Im Formular unter "Kachel-Visualisierung" kann die Instanz als Fernbedienung dargestellt werden (HTML-SDK, ab IP-Symcon 7.1).
 - Die Instanz in der Kachel-Visualisierung verlinken und die Kachel hochkant oder breit ziehen, die Fernbedienung passt sich an.
 - Enthält Power, Eingangswahl, Home, Einstellungen, Steuerkreuz mit OK, Zurück/Info/Exit, Lautstärke und Sender +/-, Stumm, Wiedergabe, Farbtasten und die angehakten Apps als Schnellwahl.
+- Für das alte WebFront: Häkchen "Altes WebFront: Variable Fernbedienung (HTMLBox) anlegen". Das Modul registriert dafür den WebHook /hook/webos<InstanzID>; die Variable "Fernbedienung" bindet ihn ein und kann im WebFront verlinkt werden.
 - Bei Tonausgabe über ARC/eARC (z.B. Soundbar) kennt der TV die Lautstärke nicht; Lautstärke +/- und Stumm werden per HDMI-CEC an die Soundbar weitergegeben.
 
 Folgende Methoden werden bereitgestellt:

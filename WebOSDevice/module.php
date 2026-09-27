@@ -85,6 +85,10 @@ class WebOSDevice extends IPSModule
         // Show the instance as remote control tile (HTML-SDK, tile visualization)
         $this->RegisterPropertyBoolean("TILE_REMOTE", false);
 
+        // Remote control for the classic WebFront (HTMLBox variable + WebHook)
+        $this->RegisterPropertyBoolean("WEBFRONT_REMOTE", false);
+        $this->RegisterPropertyInteger("WEBFRONT_HEIGHT", 620);
+
         // Private properties
         $this->RegisterPropertyString("DEVICE_PATH", "/");
         $this->RegisterPropertyInteger("DEVICE_STATE", 0); // unused, kept for compatibility
@@ -149,6 +153,17 @@ class WebOSDevice extends IPSModule
         $this->maintainVar('ChannelName',    'Aktueller Sender',   3, '',                         60, 'VAR_CHANNEL',     false);
         $this->maintainVar('ChannelControl', 'Sender wechseln',    1, 'WEBOS.Channel',            61, 'VAR_CHANNEL',     true);
         $this->maintainVar('SoundOutput',    'Tonausgabe',         1, 'WEBOS.SoundOutput',        70, 'VAR_SOUNDOUTPUT', true);
+        $this->maintainVar('RemoteHTML',     'Fernbedienung',      3, '~HTMLBox',                 80, 'WEBFRONT_REMOTE', false);
+
+        // Classic WebFront: WebHook delivers the remote, the HTMLBox embeds it
+        if ($this->ReadPropertyBoolean('WEBFRONT_REMOTE')) {
+            if (IPS_GetKernelRunlevel() == KR_READY) {
+                $this->registerHook($this->hookName());
+            } else {
+                $this->RegisterMessage(0, IPS_KERNELSTARTED);
+            }
+            $this->setVar('RemoteHTML', '<iframe src="' . $this->hookName() . '" style="width:100%;height:' . max(200, $this->ReadPropertyInteger('WEBFRONT_HEIGHT')) . 'px;border:0;background:transparent" allowtransparency="true"></iframe>');
+        }
 
         // Polling
         $interval = $this->ReadPropertyInteger('UPDATE_INTERVAL');
@@ -160,6 +175,13 @@ class WebOSDevice extends IPSModule
         $this->SetVisualizationType($this->ReadPropertyBoolean('TILE_REMOTE') ? 1 : 0);
         if ($this->ReadPropertyBoolean('TILE_REMOTE') && IPS_GetKernelRunlevel() == KR_READY) {
             $this->setTileState([]); // selection of apps/inputs may have changed
+        }
+    }
+
+    public function MessageSink($TimeStamp, $SenderID, $Message, $Data)
+    {
+        if ($Message == IPS_KERNELSTARTED) {
+            $this->ApplyChanges();
         }
     }
 
@@ -739,6 +761,79 @@ class WebOSDevice extends IPSModule
         if ($this->ReadPropertyBoolean('TILE_REMOTE')) {
             $this->UpdateVisualizationValue(json_encode($this->tileState(), JSON_UNESCAPED_UNICODE));
         }
+    }
+
+    // ---------- Remote control for the classic WebFront (WebHook) ----------
+
+    private function hookName()
+    {
+        return '/hook/webos' . $this->InstanceID;
+    }
+
+    private function registerHook($Hook)
+    {
+        $ids = IPS_GetInstanceListByModuleID('{015A6EB8-D6E5-4B93-B496-0D3F77AE9FE1}'); // WebHook Control
+        if (count($ids) == 0) {
+            $this->Log("WebHook Control instance not found");
+            return;
+        }
+        $hooks = json_decode(IPS_GetProperty($ids[0], 'Hooks'), true) ?: [];
+        foreach ($hooks as $index => $hook) {
+            if ($hook['Hook'] == $Hook) {
+                if ($hook['TargetID'] == $this->InstanceID) return;
+                $hooks[$index]['TargetID'] = $this->InstanceID;
+                IPS_SetProperty($ids[0], 'Hooks', json_encode($hooks));
+                IPS_ApplyChanges($ids[0]);
+                return;
+            }
+        }
+        $hooks[] = ['Hook' => $Hook, 'TargetID' => $this->InstanceID];
+        IPS_SetProperty($ids[0], 'Hooks', json_encode($hooks));
+        IPS_ApplyChanges($ids[0]);
+    }
+
+    protected function ProcessHookData()
+    {
+        if (!$this->ReadPropertyBoolean('WEBFRONT_REMOTE')) {
+            http_response_code(404);
+            echo 'Remote disabled';
+            return;
+        }
+
+        // Button pressed in the remote -> same actions as the tile
+        if (isset($_GET['action'])) {
+            $allowed = ['TileButton', 'VolumeStep', 'Power', 'Muted', 'Input', 'AppLaunch', 'MediaControl', 'ChannelControl'];
+            $ident = (string)$_GET['action'];
+            if (in_array($ident, $allowed, true)) {
+                $value = json_decode($_GET['value'] ?? 'null', true);
+                if (is_scalar($value)) {
+                    $this->RequestAction($ident, $value);
+                }
+            }
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode($this->tileState(), JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        // Status polling
+        if (isset($_GET['state'])) {
+            header('Content-Type: application/json; charset=utf-8');
+            header('Cache-Control: no-store');
+            echo json_encode($this->tileState(), JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        // The remote itself: tile HTML with requestAction() mapped to this hook
+        $hook = json_encode($this->hookName());
+        $shim = '<script>var HOOK=' . $hook . ';'
+              . 'function requestAction(i,v){fetch(HOOK+"?action="+encodeURIComponent(i)+"&value="+encodeURIComponent(JSON.stringify(v)),{cache:"no-store"})'
+              . '.then(function(r){return r.text();}).then(function(t){handleMessage(t);}).catch(function(){});}</script>';
+        $state = json_encode($this->tileState(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+        $poll = '<script>handleMessage(' . json_encode($state, JSON_HEX_TAG) . ');'
+              . 'setInterval(function(){if(document.hidden)return;fetch(HOOK+"?state=1",{cache:"no-store"}).then(function(r){return r.text();}).then(function(t){handleMessage(t);}).catch(function(){});},3000);</script>';
+        $html = str_replace('<head>', '<head>' . $shim, file_get_contents(__DIR__ . '/module.html'));
+        header('Content-Type: text/html; charset=utf-8');
+        echo $html . $poll;
     }
 
     // ---------- Variables & profiles ----------

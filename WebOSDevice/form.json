@@ -217,6 +217,15 @@
                 {
                     "type": "Label",
                     "caption": "In Skripten: WEBOS_Notify($id, \"Text\"), WEBOS_NotifyIcon($id, \"Text\", MedienID/Datei/URL), WEBOS_Alert($id, \"Titel\", \"Text\", Sekunden)"
+                },
+                {
+                    "name": "SYMCON_URL",
+                    "type": "ValidationTextBox",
+                    "caption": "Symcon-Adresse für Bilder (leer = automatisch, z.B. http://192.168.2.10:3777)"
+                },
+                {
+                    "type": "Label",
+                    "caption": "Bild groß anzeigen: WEBOS_ShowImage($id, MedienID/Datei/URL, \"Text\", Sekunden)"
                 }
             ]
         },

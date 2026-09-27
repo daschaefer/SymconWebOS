@@ -58,7 +58,7 @@ Ursprünglich entwickelt von Daniel Schaefer ([daschaefer/SymconWebOS](https://g
 | Variablen | Häkchen für die Variablen, die unter der Instanz angelegt werden sollen (siehe Kapitel 5) |
 | Apps und Eingänge | Tabellen mit den vom TV gelesenen Apps/Eingängen. Häkchen „In Auswahl“ = erscheint in den Auswahlen und der Fernbedienung |
 | Fernbedienung (Visualisierung) | Darstellung (Fernbedienung mit Gehäuse oder vollflächig), Kachel-Fernbedienung und/oder HTMLBox fürs alte WebFront (siehe Kapitel 6) |
-| Meldungen auf dem TV | Standard-Symbol für Meldungen (Medienobjekt, optional) |
+| Meldungen auf dem TV | Standard-Symbol für Meldungen (Medienobjekt, optional) und Symcon-Adresse für Bilder (leer = automatisch) |
 | Log-Level | `Debug` schreibt zusätzlich ins Meldungsfenster. Der Debug-Reiter der Instanz zeigt immer alle Details |
 
 **Erste Einrichtung**
@@ -143,8 +143,13 @@ jeweils auf Port 9 und 7.
 |---|---|---|
 | Einblendung | `WEBOS_Notify` | Kurze Meldung unten am Bildschirm, verschwindet nach einigen Sekunden |
 | Einblendung mit Symbol | `WEBOS_NotifyIcon` | Wie oben, mit kleinem Bild (Medienobjekt, Datei oder URL, PNG/JPG). Wird automatisch verkleinert |
+| Bild groß anzeigen | `WEBOS_ShowImage` | Zeigt ein Bild (z. B. Kamera-Snapshot) bildschirmfüllend im Browser des TVs, optional mit Text. Das Bild aktualisiert sich alle 2 Sekunden. Nach X Sekunden wechselt der TV zurück zur vorherigen App bzw. zum vorherigen Eingang |
 | Hinweisfenster | `WEBOS_Alert` | Fenster mit Titel, Text und OK-Knopf; schließt sich optional nach X Sekunden (max. 60) |
 | Variable | `Notification` | Text in die Variable „Meldung an TV“ schreiben (z. B. aus einem Ablaufplan) |
+
+**Hinweis zu Bildern:** webOS 26 zeigt Einblendungen mit Symbol (`WEBOS_NotifyIcon`) nicht an – das Modul schickt dann automatisch nur den Text. Für Bilder daher `WEBOS_ShowImage` verwenden.
+
+**So funktioniert `WEBOS_ShowImage`:** Das Modul stellt das Bild über seinen WebHook (`/hook/webos<InstanzID>`) bereit und öffnet diese Seite im Browser des TVs. Der TV muss Symcon dafür erreichen können: Die Adresse wird automatisch ermittelt (IP von Symcon, Port 3777). Läuft Symcon z. B. in Docker oder auf einem anderen Port, die Adresse im Formular unter „Symcon-Adresse für Bilder“ eintragen (z. B. `http://192.168.2.10:3777`). Hat das WebHook Control Zugangsdaten, fragt der TV-Browser danach. Das laufende Programm wird für die Anzeige unterbrochen.
 
 Ist ein **Standard-Symbol** eingestellt, wird es bei `WEBOS_Notify` und der Variable automatisch mitgeschickt. Meldungen erscheinen nur, wenn der TV eingeschaltet ist.
 
@@ -223,6 +228,8 @@ Tasten für `WEBOS_SendButton`: `UP`, `DOWN`, `LEFT`, `RIGHT`, `ENTER`, `BACK`, 
 WEBOS_Notify(int $id, string $Message);
 WEBOS_NotifyIcon(int $id, string $Message, string $Icon); // Icon: Medien-ID, Dateipfad oder URL
 WEBOS_Alert(int $id, string $Title, string $Message, int $Seconds); // 0 = bleibt bis OK
+WEBOS_ShowImage(int $id, string $Image, string $Text, int $Seconds); // Bild groß im TV-Browser, 0 = bleibt bis „Zurück“ (max. 600)
+WEBOS_ReturnFromImage(int $id);                                      // Bildanzeige beenden, zurück zur vorherigen App/Quelle
 WEBOS_DisplayMessage(int $id, string $Value);             // wie WEBOS_Notify (ältere Bezeichnung)
 ```
 
@@ -232,8 +239,8 @@ WEBOS_DisplayMessage(int $id, string $Value);             // wie WEBOS_Notify (�
 <?php
 $tv = 12345; // ID der WebOSDevice-Instanz
 
-// Türklingel: Meldung mit Kamerabild (Medienobjekt 23456) einblenden
-WEBOS_NotifyIcon($tv, 'Es hat an der Haustür geklingelt', '23456');
+// Türklingel: Kamerabild (Medienobjekt 23456) 20 Sekunden groß zeigen, danach zurück
+WEBOS_ShowImage($tv, '23456', 'Es hat an der Haustür geklingelt', 20);
 
 // Waschmaschine fertig: Hinweisfenster, schließt nach 15 Sekunden
 WEBOS_Alert($tv, 'Waschmaschine', 'Die Wäsche ist fertig.', 15);
@@ -269,5 +276,6 @@ if (GetValue(IPS_GetObjectIDByIdent('Power', $tv))) {
 | Kopplungsabfrage erscheint nicht | Port 3001 prüfen, TV eingeschaltet? Im Debug-Reiter der Instanz die Antwort ansehen |
 | App-Liste leer / „401 insufficient permissions“ | **Gerät registrieren** erneut ausführen und am TV bestätigen, danach **Eingänge und Apps neu einlesen** |
 | Einschalten klappt nicht (vor allem nach längerer Zeit) | MAC-Adresse prüfen (LAN oder WLAN, je nach Verbindung), TV-Einstellung „Mit Mobilgerät / Über Wi-Fi einschalten“ aktivieren, ggf. Broadcast-Adresse eintragen. Im Debug-Reiter steht, wohin die Pakete gesendet wurden |
+| Bild wird nicht angezeigt (`WEBOS_ShowImage`) | Im Debug-Reiter steht die geöffnete Adresse. Diese im Browser eines anderen Geräts im Heimnetz testen; ggf. „Symcon-Adresse für Bilder“ eintragen |
 | Lautstärke bleibt 0 | Ton läuft über ARC/eARC (Soundbar) – dann `VolumeStep` bzw. Lauter/Leiser verwenden |
 | Fernbedienungs-Kachel zeigt Variablen | Visualisierung neu laden, Häkchen „Instanz als Fernbedienung darstellen“ prüfen |

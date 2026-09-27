@@ -88,6 +88,9 @@ class WebOSDevice extends IPSModule
         // Notifications on the TV: default icon (media object, 0 = none)
         $this->RegisterPropertyInteger("NOTIFY_ICON", 0);
 
+        // Show images on the TV (browser): address of Symcon as seen from the TV (empty = automatic, port 3777)
+        $this->RegisterPropertyString("SYMCON_URL", "");
+
         // Show the instance as remote control tile (HTML-SDK, tile visualization)
         $this->RegisterPropertyBoolean("TILE_REMOTE", false);
 
@@ -114,6 +117,7 @@ class WebOSDevice extends IPSModule
         $this->RegisterAttributeString("APP_DATA", "[]");
 
         $this->RegisterTimer("Update", 0, 'WEBOS_Update($_IPS[\'TARGET\']);');
+        $this->RegisterTimer("ImageReturn", 0, 'WEBOS_ReturnFromImage($_IPS[\'TARGET\']);');
     }
 
     public function Destroy()
@@ -166,13 +170,15 @@ class WebOSDevice extends IPSModule
         $this->maintainVar('Notification',   'Meldung an TV',      3, '',                         75, 'VAR_NOTIFY',      true);
         $this->maintainVar('RemoteHTML',     'Fernbedienung',      3, '~HTMLBox',                 80, 'WEBFRONT_REMOTE', false);
 
-        // Classic WebFront: WebHook delivers the remote, the HTMLBox embeds it
+        // WebHook: delivers the WebFront remote and images for WEBOS_ShowImage
+        if (IPS_GetKernelRunlevel() == KR_READY) {
+            $this->registerHook($this->hookName());
+        } else {
+            $this->RegisterMessage(0, IPS_KERNELSTARTED);
+        }
+
+        // Classic WebFront: the HTMLBox embeds the remote from the WebHook
         if ($this->ReadPropertyBoolean('WEBFRONT_REMOTE')) {
-            if (IPS_GetKernelRunlevel() == KR_READY) {
-                $this->registerHook($this->hookName());
-            } else {
-                $this->RegisterMessage(0, IPS_KERNELSTARTED);
-            }
             $height = $this->ReadPropertyInteger('WEBFRONT_HEIGHT');
             if ($height > 0) {
                 $size = 'height:' . max(200, $height) . 'px';
@@ -370,6 +376,17 @@ class WebOSDevice extends IPSModule
     // Same with an icon: media object ID (e.g. camera snapshot), file path or URL (png/jpg)
     public function NotifyIcon(string $Message, string $Icon) {
         return $this->sendToast($Message, $Icon);
+    }
+
+    // Shows an image full screen in the TV browser (media ID, file or URL), optional caption.
+    // $Seconds > 0: returns to the previous app/input afterwards (max. 600). The image refreshes every 2 seconds.
+    public function ShowImage(string $Image, string $Text, int $Seconds) {
+        return $this->doShowImage($Image, $Text, $Seconds);
+    }
+
+    // Closes the image and returns to the previous app/input (also called by the timer)
+    public function ReturnFromImage() {
+        return $this->doReturnFromImage();
     }
 
     // Shows a dialog with title, text and OK button. $Seconds > 0: closes automatically after this time (max. 60)
@@ -861,19 +878,145 @@ class WebOSDevice extends IPSModule
         return true;
     }
 
+    // Raw image bytes from a media ID, file path or URL (false if not loadable)
+    private function loadImageData($Source)
+    {
+        $Source = trim((string)$Source);
+        $data = false;
+        if (ctype_digit($Source) && @IPS_MediaExists((int)$Source)) {
+            $data = base64_decode(IPS_GetMediaContent((int)$Source));
+        } elseif (preg_match('#^https?://#i', $Source)) {
+            $ctx = stream_context_create(['http' => ['timeout' => 4], 'ssl' => ['verify_peer' => false, 'verify_peer_name' => false]]);
+            $data = @file_get_contents($Source, false, $ctx);
+        } elseif ($Source !== '' && is_file($Source)) {
+            $data = @file_get_contents($Source);
+        }
+        return ($data === false || $data === '') ? false : $data;
+    }
+
+    private function imageMime($Data)
+    {
+        if (substr($Data, 0, 8) == "\x89PNG\r\n\x1a\n") return 'image/png';
+        if (substr($Data, 0, 3) == 'GIF') return 'image/gif';
+        if (substr($Data, 0, 4) == 'RIFF' && substr($Data, 8, 4) == 'WEBP') return 'image/webp';
+        return 'image/jpeg';
+    }
+
+    // Base address of Symcon as seen from the TV
+    private function symconBaseUrl()
+    {
+        $url = trim($this->ReadPropertyString('SYMCON_URL'));
+        if ($url !== '') {
+            if (!preg_match('#^https?://#i', $url)) $url = 'http://' . $url;
+            return rtrim($url, '/');
+        }
+        // local IP address that is used to reach the TV (no packet is sent)
+        $ip = '';
+        $s = @stream_socket_client('udp://' . trim($this->ReadPropertyString('DEVICE_IP')) . ':9', $errno, $errstr, 1);
+        if ($s) {
+            $name = stream_socket_get_name($s, false);
+            fclose($s);
+            $ip = substr($name, 0, strrpos($name, ':'));
+        }
+        return 'http://' . ($ip !== '' ? $ip : '127.0.0.1') . ':3777';
+    }
+
+    private function doShowImage($Image, $Text, $Seconds)
+    {
+        if ($this->loadImageData($Image) === false) {
+            $this->Log("ShowImage: image could not be loaded: $Image");
+            return false;
+        }
+        if (!$this->lg_handshake(3)) {
+            $this->Log("ShowImage: TV not reachable");
+            return false;
+        }
+
+        // remember what is running now (not the browser, if an image is already shown)
+        $old = json_decode($this->GetBuffer('ShowImage'), true);
+        $p = $this->ssap('ssap://com.webos.applicationManager/getForegroundAppInfo');
+        $previous = is_array($p) ? ($p['appId'] ?? '') : '';
+        if ($previous == 'com.webos.app.browser' && is_array($old)) {
+            $previous = $old['previous'] ?? '';
+        }
+
+        $token = bin2hex(random_bytes(12));
+        $this->SetBuffer('ShowImage', json_encode(['token' => $token, 'source' => trim($Image), 'text' => (string)$Text, 'previous' => $previous]));
+
+        $url = $this->symconBaseUrl() . $this->hookName() . '?image=' . $token;
+        $this->Log("ShowImage: opening $url (previous app: $previous)");
+        $res = $this->ssap('ssap://system.launcher/open', ['target' => $url]);
+        if ($res === null) {
+            $this->Log("ShowImage: TV browser could not be opened");
+            return false;
+        }
+        $Seconds = min(600, max(0, (int)$Seconds));
+        $this->SetTimerInterval('ImageReturn', $Seconds > 0 ? $Seconds * 1000 : 0);
+        return true;
+    }
+
+    private function doReturnFromImage()
+    {
+        $this->SetTimerInterval('ImageReturn', 0);
+        $info = json_decode($this->GetBuffer('ShowImage'), true);
+        if (!$this->lg_handshake(3)) {
+            return false;
+        }
+        $p = $this->ssap('ssap://com.webos.applicationManager/getForegroundAppInfo');
+        $current = is_array($p) ? ($p['appId'] ?? '') : '';
+        if ($current != 'com.webos.app.browser') {
+            return true; // user already switched somewhere else
+        }
+        $this->ssap('ssap://system.launcher/close', ['id' => 'com.webos.app.browser']);
+        $previous = is_array($info) ? ($info['previous'] ?? '') : '';
+        if ($previous !== '' && $previous != 'com.webos.app.browser') {
+            usleep(300000);
+            $this->ssap('ssap://system.launcher/launch', ['id' => $previous]);
+        }
+        $this->disconnect();
+        return true;
+    }
+
+    // WebHook: image page (?image=token) and the image itself (?imgdata=token)
+    private function serveImage()
+    {
+        $info = json_decode($this->GetBuffer('ShowImage'), true);
+        $token = (string)($_GET['image'] ?? ($_GET['imgdata'] ?? ''));
+        if (!is_array($info) || !isset($info['token']) || !hash_equals($info['token'], $token)) {
+            http_response_code(404);
+            echo 'Not found';
+            return;
+        }
+        if (isset($_GET['imgdata'])) {
+            $data = $this->loadImageData($info['source']);
+            if ($data === false) {
+                http_response_code(404);
+                return;
+            }
+            header('Content-Type: ' . $this->imageMime($data));
+            header('Cache-Control: no-store');
+            echo $data;
+            return;
+        }
+        $src = htmlspecialchars($this->hookName() . '?imgdata=' . $token, ENT_QUOTES);
+        $text = htmlspecialchars((string)$info['text'], ENT_QUOTES);
+        header('Content-Type: text/html; charset=utf-8');
+        header('Cache-Control: no-store');
+        echo '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Symcon</title>'
+           . '<style>html,body{margin:0;height:100%;background:#000;overflow:hidden;cursor:none}'
+           . 'img{position:fixed;left:0;top:0;width:100%;height:100%;object-fit:contain}'
+           . '.t{position:fixed;left:0;right:0;bottom:0;padding:28px 48px;font:600 36px/1.3 sans-serif;color:#fff;'
+           . 'background:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.8))}.t:empty{display:none}</style></head><body>'
+           . '<img id="i" src="' . $src . '&t=0" alt=""><div class="t">' . $text . '</div>'
+           . '<script>setInterval(function(){var n=new Image();n.onload=function(){document.getElementById("i").src=n.src;};'
+           . 'n.src="' . $src . '&t="+Date.now();},2000);</script></body></html>';
+    }
+
     // Returns [base64, extension] of a small icon or null. $Icon: media ID, file path or URL
     private function loadIcon($Icon)
     {
-        $data = false;
-        if (ctype_digit($Icon) && @IPS_MediaExists((int)$Icon)) {
-            $data = base64_decode(IPS_GetMediaContent((int)$Icon));
-        } elseif (preg_match('#^https?://#i', $Icon)) {
-            $ctx = stream_context_create(['http' => ['timeout' => 4], 'ssl' => ['verify_peer' => false, 'verify_peer_name' => false]]);
-            $data = @file_get_contents($Icon, false, $ctx);
-        } elseif (is_file($Icon)) {
-            $data = @file_get_contents($Icon);
-        }
-        if ($data === false || $data === '') {
+        $data = $this->loadImageData($Icon);
+        if ($data === false) {
             $this->Log("Icon could not be loaded: $Icon");
             return null;
         }
@@ -969,6 +1112,12 @@ class WebOSDevice extends IPSModule
 
     protected function ProcessHookData()
     {
+        // Images for WEBOS_ShowImage (protected by a random token)
+        if (isset($_GET['image']) || isset($_GET['imgdata'])) {
+            $this->serveImage();
+            return;
+        }
+
         if (!$this->ReadPropertyBoolean('WEBFRONT_REMOTE')) {
             http_response_code(404);
             echo 'Remote disabled';

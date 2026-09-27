@@ -385,7 +385,7 @@ class WebOSDevice extends IPSModule
         return $this->RequestAction('CurrentPowerState', '');
     }
 
-    public function SendKey($Value) {
+    public function SendKey(string $Value) {
         return $this->RequestAction('SendKey', $Value);
     }
     public function Mute() {
@@ -412,7 +412,7 @@ class WebOSDevice extends IPSModule
         return $this->RequestAction('ChannelDown', '');
     }
 
-    public function SetChannel($Value) {
+    public function SetChannel(string $Value) {
         return $this->RequestAction('SetChannel', $Value);
     }
 
@@ -421,7 +421,7 @@ class WebOSDevice extends IPSModule
     }
 
 
-    public function SetInput($Value) {
+    public function SetInput(string $Value) {
         return $this->RequestAction('InputSource', $Value);
     }
 
@@ -430,11 +430,11 @@ class WebOSDevice extends IPSModule
     }
 
 
-    public function LaunchApp($Value) {
+    public function LaunchApp(string $Value) {
         $this->RequestAction('LaunchApp', $Value);
     }
 
-    public function CloseApp($Value) {
+    public function CloseApp(string $Value) {
         $this->RequestAction('CloseApp', $Value);
     }
 
@@ -481,7 +481,7 @@ class WebOSDevice extends IPSModule
         $this->RequestAction('FastForward', '');
     }
 
-    public function DisplayMessage($Value) {
+    public function DisplayMessage(string $Value) {
         $this->RequestAction('Message', $Value);
     }
 
@@ -497,7 +497,7 @@ class WebOSDevice extends IPSModule
         return $this->RequestAction('getSoundOutput', '');
     }
 
-    public function SetSoundOutput($Value) {
+    public function SetSoundOutput(string $Value) {
         return $this->RequestAction('setSoundOutput', $Value);
     }
 

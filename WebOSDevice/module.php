@@ -1,41 +1,154 @@
 <?php
 
 class WebOSDevice extends IPSModule
-{     
-    private $socket = null;
+{
+    private $sock = null;
     private $connected = false;
+    private $registered = false;
+    private $msgCounter = 0;
+
+    // Signed registration manifest (LG test certificate). Accepted by webOS up to 25,
+    // rejected by webOS 26+ ("blacklisted certificate") -> unsigned fallback, see buildUnsignedHandshake().
+    const SIGNED_HANDSHAKE = '{"type":"register","id":"register_0","payload":{"forcePairing":false,"pairingType":"PROMPT","manifest":{"manifestVersion":1,"appVersion":"1.1","signed":{"created":"20140509","appId":"com.lge.test","vendorId":"com.lge","localizedAppNames":{"":"LG Remote App","ko-KR":"ë¦¬ëª¨ì»¨ ì•±","zxx-XX":"Ð›Ð“ RÑ�Ð¼otÑ� AÐŸÐŸ"},"localizedVendorNames":{"":"LG Electronics"},"permissions":["TEST_SECURE","CONTROL_INPUT_TEXT","CONTROL_MOUSE_AND_KEYBOARD","READ_INSTALLED_APPS","READ_LGE_SDX","READ_NOTIFICATIONS","SEARCH","WRITE_SETTINGS","WRITE_NOTIFICATION_ALERT","CONTROL_POWER","READ_CURRENT_CHANNEL","READ_RUNNING_APPS","READ_UPDATE_INFO","UPDATE_FROM_REMOTE_APP","READ_LGE_TV_INPUT_EVENTS","READ_TV_CURRENT_TIME"],"serial":"2f930e2d2cfe083771f68e4fe7bb07"},"permissions":["LAUNCH","LAUNCH_WEBAPP","APP_TO_APP","CLOSE","TEST_OPEN","TEST_PROTECTED","CONTROL_AUDIO","CONTROL_DISPLAY","CONTROL_INPUT_JOYSTICK","CONTROL_INPUT_MEDIA_RECORDING","CONTROL_INPUT_MEDIA_PLAYBACK","CONTROL_INPUT_TV","CONTROL_POWER","READ_APP_STATUS","READ_CURRENT_CHANNEL","READ_INPUT_DEVICE_LIST","READ_NETWORK_STATE","READ_RUNNING_APPS","READ_TV_CHANNEL_LIST","WRITE_NOTIFICATION_TOAST","READ_POWER_STATE","READ_COUNTRY_INFO"],"signatures":[{"signatureVersion":1,"signature":"eyJhbGdvcml0aG0iOiJSU0EtU0hBMjU2Iiwia2V5SWQiOiJ0ZXN0LXNpZ25pbmctY2VydCIsInNpZ25hdHVyZVZlcnNpb24iOjF9.hrVRgjCwXVvE2OOSpDZ58hR+59aFNwYDyjQgKk3auukd7pcegmE2CzPCa0bJ0ZsRAcKkCTJrWo5iDzNhMBWRyaMOv5zWSrthlf7G128qvIlpMT0YNY+n/FaOHE73uLrS/g7swl3/qH/BGFG2Hu4RlL48eb3lLKqTt2xKHdCs6Cd4RMfJPYnzgvI4BNrFUKsjkcu+WD4OO2A27Pq1n50cMchmcaXadJhGrOqH5YmHdOCj5NSHzJYrsW0HPlpuAx/ECMeIZYDh6RMqaFM2DXzdKX9NmmyqzJ3o/0lkk/N97gfVRLW5hA29yeAwaCViZNCP8iC9aO0q9fQojoa7NQnAtw=="}]}}}';
+
+    // Remote buttons for the pointer input socket: value => [button name, caption]
+    const REMOTE_BUTTONS = [
+        0  => ['UP', 'Hoch'],
+        1  => ['DOWN', 'Runter'],
+        2  => ['LEFT', 'Links'],
+        3  => ['RIGHT', 'Rechts'],
+        4  => ['ENTER', 'OK'],
+        5  => ['BACK', 'Zurück'],
+        6  => ['EXIT', 'Exit'],
+        7  => ['HOME', 'Home'],
+        8  => ['MENU', 'Einstellungen'],
+        9  => ['INFO', 'Info'],
+        10 => ['RED', 'Rot'],
+        11 => ['GREEN', 'Grün'],
+        12 => ['YELLOW', 'Gelb'],
+        13 => ['BLUE', 'Blau']
+    ];
+
+    // Media controls: value => [ssap command, caption]
+    const MEDIA_CONTROLS = [
+        0 => ['play', 'Play'],
+        1 => ['pause', 'Pause'],
+        2 => ['stop', 'Stop'],
+        3 => ['rewind', 'Zurückspulen'],
+        4 => ['fastForward', 'Vorspulen']
+    ];
+
+    // Sound outputs: value => [webOS id, caption]
+    const SOUND_OUTPUTS = [
+        0 => ['tv_speaker', 'TV-Lautsprecher'],
+        1 => ['external_arc', 'HDMI ARC / eARC'],
+        2 => ['external_optical', 'Optisch'],
+        3 => ['bt_soundbar', 'Bluetooth'],
+        4 => ['headphone', 'Kopfhörer'],
+        5 => ['tv_external_speaker', 'TV + Extern']
+    ];
 
     // PUBLIC ACCESSIBLE FUNCTIONS
 
     public function __destruct()
     {
-        if ($this->socket) {
-            socket_close($this->socket);
-        }
+        $this->disconnect();
     }
 
     public function Create()
     {
         parent::Create();
-        
+
         // Public properties
         $this->RegisterPropertyString("DEVICE_IP", "");
         $this->RegisterPropertyString("DEVICE_MAC", "");
-        $this->RegisterPropertyInteger("DEVICE_PORT", "3001");
+        $this->RegisterPropertyInteger("DEVICE_PORT", 3001);
         $this->RegisterPropertyString("DEVICE_CODE", "");
-        $this->RegisterPropertyString("DEVICE_WSKEY", base64_encode($this->generateRandomString(16, false, true)));
+        $this->RegisterPropertyString("DEVICE_WSKEY", base64_encode($this->generateRandomString(16, false, true))); // unused, kept for compatibility
 
-        $this->RegisterPropertyInteger("DEVICE_SOCKET", 0);
+        $this->RegisterPropertyInteger("DEVICE_SOCKET", 0); // unused, kept for compatibility
+
+        // Status polling interval in seconds (0 = off)
+        $this->RegisterPropertyInteger("UPDATE_INTERVAL", 10);
+
+        // Which status/action variables should be created
+        $this->RegisterPropertyBoolean("VAR_POWER", true);
+        $this->RegisterPropertyBoolean("VAR_VOLUME", true);
+        $this->RegisterPropertyBoolean("VAR_INPUT", true);
+        $this->RegisterPropertyBoolean("VAR_APP", true);
+        $this->RegisterPropertyBoolean("VAR_APPLAUNCH", false);
+        $this->RegisterPropertyBoolean("VAR_REMOTE", false);
+        $this->RegisterPropertyBoolean("VAR_MEDIA", false);
+        $this->RegisterPropertyBoolean("VAR_CHANNEL", false);
+        $this->RegisterPropertyBoolean("VAR_SOUNDOUTPUT", false);
 
         // Private properties
         $this->RegisterPropertyString("DEVICE_PATH", "/");
-        $this->RegisterPropertyInteger("DEVICE_STATE", 0); // 0=disconnected, 1=connecting, 2=connected
+        $this->RegisterPropertyInteger("DEVICE_STATE", 0); // unused, kept for compatibility
         $this->RegisterPropertyInteger("LOGLEVEL", 0);
+
+        // webOS 26+: TV rejects the signed LG test manifest ("blacklisted certificate").
+        // Remembers that this device needs the unsigned registration manifest.
+        $this->RegisterAttributeBoolean("UNSIGNED_PAIRING", false);
+
+        // Cached lists from the TV (JSON)
+        $this->RegisterAttributeString("INPUTS", "[]");
+        $this->RegisterAttributeString("APPS", "[]");
+
+        $this->RegisterTimer("Update", 0, 'WEBOS_Update($_IPS[\'TARGET\']);');
     }
-    
+
+    public function Destroy()
+    {
+        if (!IPS_InstanceExists($this->InstanceID)) {
+            foreach ([$this->inputProfileName(), $this->appProfileName()] as $profile) {
+                if (IPS_VariableProfileExists($profile)) {
+                    IPS_DeleteVariableProfile($profile);
+                }
+            }
+        }
+        parent::Destroy();
+    }
+
     public function ApplyChanges()
     {
         parent::ApplyChanges();
+
+        // Static profiles
+        if (!IPS_VariableProfileExists('WEBOS.Volume')) {
+            IPS_CreateVariableProfile('WEBOS.Volume', 1);
+            IPS_SetVariableProfileIcon('WEBOS.Volume', 'Speaker');
+            IPS_SetVariableProfileValues('WEBOS.Volume', 0, 100, 1);
+            IPS_SetVariableProfileText('WEBOS.Volume', '', '');
+        }
+        $this->setProfileAssociations('WEBOS.Mute', 0, 'Speaker', [[false, 'Ton an'], [true, 'Stumm']]);
+        $this->setProfileAssociations('WEBOS.Remote', 1, 'Move', array_map(function ($v, $b) { return [$v, $b[1]]; }, array_keys(self::REMOTE_BUTTONS), self::REMOTE_BUTTONS));
+        $this->setProfileAssociations('WEBOS.Media', 1, 'Music', array_map(function ($v, $b) { return [$v, $b[1]]; }, array_keys(self::MEDIA_CONTROLS), self::MEDIA_CONTROLS));
+        $this->setProfileAssociations('WEBOS.Channel', 1, 'TV', [[0, 'Sender –'], [1, 'Sender +']]);
+        $this->setProfileAssociations('WEBOS.SoundOutput', 1, 'Speaker', array_merge([[-1, 'Andere']], array_map(function ($v, $b) { return [$v, $b[1]]; }, array_keys(self::SOUND_OUTPUTS), self::SOUND_OUTPUTS)));
+
+        // Dynamic profiles (per instance) from cached lists
+        $this->updateInputProfile();
+        $this->updateAppProfile();
+
+        // Variables (created/removed according to the check boxes in the form)
+        $this->maintainVar('Power',          'Power',              0, '~Switch',                  10, 'VAR_POWER',       true);
+        $this->maintainVar('Volume',         'Lautstärke',         1, 'WEBOS.Volume',             20, 'VAR_VOLUME',      true);
+        $this->maintainVar('Muted',          'Stumm',              0, 'WEBOS.Mute',               21, 'VAR_VOLUME',      true);
+        $this->maintainVar('Input',          'Eingang',            1, $this->inputProfileName(),  30, 'VAR_INPUT',       true);
+        $this->maintainVar('AppName',        'Aktuelle App',       3, '',                         40, 'VAR_APP',         false);
+        $this->maintainVar('AppLaunch',      'App starten',        1, $this->appProfileName(),    41, 'VAR_APPLAUNCH',   true);
+        $this->maintainVar('RemoteKey',      'Fernbedienung',      1, 'WEBOS.Remote',             50, 'VAR_REMOTE',      true);
+        $this->maintainVar('MediaControl',   'Wiedergabe',         1, 'WEBOS.Media',              51, 'VAR_MEDIA',       true);
+        $this->maintainVar('ChannelName',    'Aktueller Sender',   3, '',                         60, 'VAR_CHANNEL',     false);
+        $this->maintainVar('ChannelControl', 'Sender wechseln',    1, 'WEBOS.Channel',            61, 'VAR_CHANNEL',     true);
+        $this->maintainVar('SoundOutput',    'Tonausgabe',         1, 'WEBOS.SoundOutput',        70, 'VAR_SOUNDOUTPUT', true);
+
+        // Polling
+        $interval = $this->ReadPropertyInteger('UPDATE_INTERVAL');
+        $active = trim($this->ReadPropertyString('DEVICE_IP')) != '';
+        $this->SetTimerInterval('Update', ($active && $interval > 0) ? $interval * 1000 : 0);
+        $this->SetStatus($active ? 102 : 104);
     }
 
     public function Test() {
@@ -45,8 +158,130 @@ class WebOSDevice extends IPSModule
 
     public function RegisterDevice() {
         $this->Log("RegisterDevice function called");
-        $this->Connect();
-        $this->lg_handshake();
+        $this->disconnect();
+        if ($this->lg_handshake()) {
+            $this->Log("Registration successful");
+            $this->RefreshLists();
+            $this->Update();
+            return true;
+        }
+        $this->Log("Registration failed");
+        return false;
+    }
+
+    // Reads status from the TV and updates the variables (called by timer)
+    public function Update()
+    {
+        // Without a client key the TV would show the pairing prompt on every poll -> only after registration
+        if (trim($this->ReadPropertyString('DEVICE_IP')) == '' || $this->ReadPropertyString('DEVICE_CODE') == '') {
+            return false;
+        }
+
+        $on = false;
+        if ($this->lg_handshake(2)) {
+            $p = $this->ssap('ssap://com.webos.service.tvpower/power/getPowerState');
+            $state = is_array($p) ? ($p['state'] ?? 'Active') : 'Active';
+            $on = in_array($state, ['Active', 'Screen Off', 'Screen Saver']) && !isset($p['processing']);
+        }
+        $this->setVar('Power', $on);
+
+        if (!$on) {
+            $this->setVar('AppName', '');
+            $this->setVar('ChannelName', '');
+            $this->disconnect();
+            return true;
+        }
+
+        // Load input/app lists once
+        if ($this->ReadPropertyBoolean('VAR_INPUT') && $this->ReadAttributeString('INPUTS') == '[]') {
+            $this->refreshInputs();
+        }
+        if (($this->ReadPropertyBoolean('VAR_APP') || $this->ReadPropertyBoolean('VAR_APPLAUNCH')) && $this->ReadAttributeString('APPS') == '[]') {
+            $this->refreshApps();
+        }
+
+        if ($this->ReadPropertyBoolean('VAR_VOLUME')) {
+            $p = $this->ssap('ssap://audio/getVolume');
+            if (is_array($p)) {
+                [$volume, $muted] = $this->parseVolume($p);
+                if ($volume !== null) $this->setVar('Volume', $volume);
+                if ($muted !== null) $this->setVar('Muted', $muted);
+            }
+        }
+
+        $needApp = $this->ReadPropertyBoolean('VAR_APP') || $this->ReadPropertyBoolean('VAR_INPUT') || $this->ReadPropertyBoolean('VAR_CHANNEL');
+        $appId = '';
+        if ($needApp) {
+            $p = $this->ssap('ssap://com.webos.applicationManager/getForegroundAppInfo');
+            $appId = is_array($p) ? ($p['appId'] ?? '') : '';
+
+            $inputs = json_decode($this->ReadAttributeString('INPUTS'), true) ?: [];
+            $inputIndex = -1;
+            $name = $appId;
+            foreach ($inputs as $i => $input) {
+                if (($input['appId'] ?? '') != '' && $input['appId'] == $appId) {
+                    $inputIndex = $i;
+                    $name = $input['label'];
+                }
+            }
+            foreach (json_decode($this->ReadAttributeString('APPS'), true) ?: [] as $app) {
+                if ($app['id'] == $appId) {
+                    $name = $app['title'];
+                }
+            }
+            $this->setVar('AppName', $name);
+            $this->setVar('Input', $inputIndex);
+        }
+
+        if ($this->ReadPropertyBoolean('VAR_CHANNEL')) {
+            $channel = '';
+            if ($appId == 'com.webos.app.livetv') {
+                $p = $this->ssap('ssap://tv/getCurrentChannel');
+                if (is_array($p)) {
+                    $channel = trim(($p['channelNumber'] ?? '') . ' ' . ($p['channelName'] ?? ''));
+                }
+            }
+            $this->setVar('ChannelName', $channel);
+        }
+
+        if ($this->ReadPropertyBoolean('VAR_SOUNDOUTPUT')) {
+            $p = $this->ssap('ssap://com.webos.service.apiadapter/audio/getSoundOutput');
+            if (is_array($p) && isset($p['soundOutput'])) {
+                $index = -1;
+                foreach (self::SOUND_OUTPUTS as $v => $o) {
+                    if ($o[0] == $p['soundOutput']) $index = $v;
+                }
+                $this->setVar('SoundOutput', $index);
+            }
+        }
+
+        $this->disconnect();
+        return true;
+    }
+
+    // Reads inputs (HDMI ...) and installed apps from the TV and updates the selection profiles
+    public function RefreshLists()
+    {
+        if (!$this->lg_handshake()) {
+            $this->Log("RefreshLists: TV not reachable");
+            return false;
+        }
+        $this->refreshInputs();
+        $this->refreshApps();
+        return true;
+    }
+
+    // Sends a remote control button via the pointer input socket (e.g. "UP", "ENTER", "BACK", "HOME")
+    public function SendButton(string $Name) {
+        return $this->sendPointerButton($Name);
+    }
+
+    public function SetVolume(int $Value) {
+        return $this->RequestAction('Volume', $Value);
+    }
+
+    public function SetMute(bool $Value) {
+        return $this->RequestAction('Muted', $Value);
     }
 
     public function PowerOn() {
@@ -91,7 +326,7 @@ class WebOSDevice extends IPSModule
     public function SetChannel($Value) {
         return $this->RequestAction('SetChannel', $Value);
     }
-    
+
     public function GetChannelList() {
         return $this->RequestAction('ChannelList', '');
     }
@@ -177,12 +412,59 @@ class WebOSDevice extends IPSModule
         return $this->RequestAction('setSoundOutput', $Value);
     }
 
-    public function RequestAction($Ident, $Value) 
-    { 
+    public function RequestAction($Ident, $Value)
+    {
         $response = null;
 
-        switch ($Ident) 
-        { 
+        switch ($Ident)
+        {
+            // Variable actions (switchable variables below the instance)
+            case 'Power':
+                $response = $Value ? $this->RequestAction('PowerOn', '') : $this->RequestAction('PowerOff', '');
+                $this->setVar('Power', (bool)$Value);
+                break;
+            case 'Volume':
+                $response = $this->ssap('ssap://audio/setVolume', ['volume' => max(0, min(100, (int)$Value))]);
+                $this->setVar('Volume', (int)$Value);
+                break;
+            case 'Muted':
+                $response = $this->ssap('ssap://audio/setMute', ['mute' => (bool)$Value]);
+                $this->setVar('Muted', (bool)$Value);
+                break;
+            case 'Input':
+                $inputs = json_decode($this->ReadAttributeString('INPUTS'), true) ?: [];
+                if (isset($inputs[$Value])) {
+                    $response = $this->ssap('ssap://tv/switchInput', ['inputId' => $inputs[$Value]['id']]);
+                    $this->setVar('Input', (int)$Value);
+                }
+                break;
+            case 'AppLaunch':
+                $apps = json_decode($this->ReadAttributeString('APPS'), true) ?: [];
+                if (isset($apps[$Value])) {
+                    $response = $this->ssap('ssap://system.launcher/launch', ['id' => $apps[$Value]['id']]);
+                    $this->setVar('AppLaunch', (int)$Value);
+                }
+                break;
+            case 'RemoteKey':
+                if (isset(self::REMOTE_BUTTONS[$Value])) {
+                    $response = $this->sendPointerButton(self::REMOTE_BUTTONS[$Value][0]);
+                }
+                break;
+            case 'MediaControl':
+                if (isset(self::MEDIA_CONTROLS[$Value])) {
+                    $response = $this->ssap('ssap://media.controls/' . self::MEDIA_CONTROLS[$Value][0]);
+                }
+                break;
+            case 'ChannelControl':
+                $response = $this->ssap($Value ? 'ssap://tv/channelUp' : 'ssap://tv/channelDown');
+                break;
+            case 'SoundOutput':
+                if (isset(self::SOUND_OUTPUTS[$Value])) {
+                    $response = $this->ssap('ssap://audio/changeSoundOutput', ['output' => self::SOUND_OUTPUTS[$Value][0]]);
+                    $this->setVar('SoundOutput', (int)$Value);
+                }
+                break;
+
             // TV Controls
             case 'SendKey':
                 $command = '{"id":"sendKey","type":"request","uri":"ssap://com.webos.service.ime/sendKey","payload":{"keyCode":"'.$Value.'"}}';
@@ -200,30 +482,26 @@ class WebOSDevice extends IPSModule
                 $command = '{"id":"currentVolume","type":"request","uri":"ssap://audio/getVolume"}';
                 $response = $this->send_command($command);
 
-                if($response) {
-                    if(property_exists($response, 'payload') && property_exists($response->payload, 'volumeStatus')) {
-                        if($response->payload->volumeStatus->muteStatus == 1)
-                            $response = 0;
-                        else
-                            $response = $response->payload->volumeStatus->volume;
+                if($response && property_exists($response, 'payload')) {
+                    [$volume, $muted] = $this->parseVolume(json_decode(json_encode($response->payload), true) ?: []);
+                    if ($volume !== null) {
+                        $response = $muted ? 0 : $volume;
                     }
                 }
 
                 break;
             case 'Mute':
-                $response = $this->RequestAction('GetAudioStatus', '');
-
-                $SetMute = '1'; // default at power on is unmuted, reversed state to set mute to
-                if(property_exists($response, 'payload') && property_exists($response->payload, 'volumeStatus')) {
-                    if($response->payload->volumeStatus->muteStatus == 1)
-                        $SetMute = '0';
-                } else {
+                $p = $this->ssap('ssap://audio/getVolume');
+                if (!is_array($p)) {
                     $this->Log("Error getting current volume for mute toggle, aborting mute command!");
                     return null;
                 }
+                [$volume, $muted] = $this->parseVolume($p);
+                $SetMute = $muted ? 'false' : 'true'; // toggle
 
                 $command = '{"id":"mute","type":"request","uri":"ssap://audio/setMute","payload":{"mute":'.$SetMute.'}}';
                 $response = $this->send_command($command);
+                $this->setVar('Muted', !$muted);
                 break;
 
             // Channel Controls
@@ -243,7 +521,7 @@ class WebOSDevice extends IPSModule
                 $command = '{"id":"channelList","type":"request","uri":"ssap://tv/getChannelList"}';
                 $response = $this->send_command($command);
                 break;
-            
+
             // Input Controls
             case 'InputSource':
                 $command = '{"id":"setInputSource","type":"request","uri":"ssap://tv/switchInput","payload":{"inputId":"'.$Value.'"}}';
@@ -283,8 +561,8 @@ class WebOSDevice extends IPSModule
                 $command = '{"id":"currentApp","type":"request","uri":"ssap://com.webos.applicationManager/getForegroundAppInfo"}';
                 $response = $this->send_command($command);
                 break;
-            case 'AppList': // TODO: 404 insufficient permissions
-                $command = '{"id":"appList","type":"request","uri":"ssap://com.webos.applicationManager/listApps"}';
+            case 'AppList':
+                $command = '{"id":"appList","type":"request","uri":"ssap://com.webos.applicationManager/listLaunchPoints"}';
                 $response = $this->send_command($command);
                 break;
 
@@ -312,7 +590,7 @@ class WebOSDevice extends IPSModule
 
             // Extended Audio Controls
             case 'getAudioStatus':
-                $command = '{"id":"getSoundOutput","type":"request","uri":"ssap://audio/getStatus"}';
+                $command = '{"id":"getAudioStatus","type":"request","uri":"ssap://audio/getStatus"}';
                 $response = $this->send_command($command);
                 break;
             case 'getSoundOutput':
@@ -330,7 +608,7 @@ class WebOSDevice extends IPSModule
                 $response = $this->send_command($command);
                 break;
             case 'PowerOn':
-                $mac = IPS_GetProperty($this->InstanceID, "DEVICE_MAC");
+                $mac = $this->ReadPropertyString("DEVICE_MAC");
                 if (!$mac || strlen(trim($mac)) == 0) {
                     $this->Log("PowerOn: No MAC address configured for WOL, aborting.");
                     return null;
@@ -365,397 +643,563 @@ class WebOSDevice extends IPSModule
 
             // Misc
             case 'Message':
-                $command = '{"id":"message","type":"request","uri":"ssap://system.notifications/createToast","payload":{"message":"'.$Value.'"}}';
-                $response = $this->send_command($command);
+                $response = $this->ssap('ssap://system.notifications/createToast', ['message' => (string)$Value]);
                 break;
 
             case 'SystemInfo': // TODO: 404 insufficient permissions
                 $command = '{"id":"currentSystemInfo","type":"request","uri":"ssap://system/getSystemInfo"}';
                 $response = $this->send_command($command);
                 break;
-            
+
             default:
                 $this->Log("Invalid Ident in RequestAction: ".$Ident);
                 $this->Log("Value: ".$Value);
                 break;
-        } 
+        }
 
         return $response;
     }
 
     // PRIVATE FUNCTIONS
 
-    private function Connect()
-    {
-        IPS_SetProperty($this->InstanceID, "DEVICE_STATE", 1); // connecting
-        
-        $ws_handshake_cmd = "GET ".IPS_GetProperty($this->InstanceID, "DEVICE_PATH")." HTTP/1.1\r\n";
-        $ws_handshake_cmd.= "Upgrade: websocket\r\n";
-        $ws_handshake_cmd.= "Connection: Upgrade\r\n";
-        $ws_handshake_cmd.= "Sec-WebSocket-Version: 13\r\n";            
-        $ws_handshake_cmd.= "Sec-WebSocket-Key: ".IPS_GetProperty($this->InstanceID, "DEVICE_WSKEY")."\r\n";
-        $ws_handshake_cmd.= "Host: ssl://".IPS_GetProperty($this->InstanceID, "DEVICE_IP").":".IPS_GetProperty($this->InstanceID, "DEVICE_PORT")."\r\n\r\n";
-        //$this->sock = fsockopen($this->host, $this->port, $errno, $errstr, 2);
+    // ---------- Variables & profiles ----------
 
+    private function maintainVar($Ident, $Name, $Type, $Profile, $Position, $Property, $Action)
+    {
+        $keep = $this->ReadPropertyBoolean($Property);
+        $this->MaintainVariable($Ident, $Name, $Type, $Profile, $Position, $keep);
+        if ($keep && $Action) {
+            $this->EnableAction($Ident);
+        }
+    }
+
+    private function setVar($Ident, $Value)
+    {
+        $id = @IPS_GetObjectIDByIdent($Ident, $this->InstanceID);
+        if ($id === false || $id == 0) {
+            return;
+        }
+        if (GetValue($id) !== $Value) {
+            $this->SetValue($Ident, $Value);
+        }
+    }
+
+    private function inputProfileName()
+    {
+        return 'WEBOS.Input.' . $this->InstanceID;
+    }
+
+    private function appProfileName()
+    {
+        return 'WEBOS.Apps.' . $this->InstanceID;
+    }
+
+    // Creates the profile if needed and replaces all associations. $Associations = [[value, caption], ...]
+    private function setProfileAssociations($Name, $Type, $Icon, $Associations)
+    {
+        if (!IPS_VariableProfileExists($Name)) {
+            IPS_CreateVariableProfile($Name, $Type);
+        }
+        IPS_SetVariableProfileIcon($Name, $Icon);
+        foreach (IPS_GetVariableProfile($Name)['Associations'] as $old) {
+            IPS_SetVariableProfileAssociation($Name, $old['Value'], '', '', -1); // empty name removes the association
+        }
+        if ($Type != 0 && count($Associations) > 0) {
+            IPS_SetVariableProfileValues($Name, $Associations[0][0], $Associations[count($Associations) - 1][0], 0);
+        }
+        foreach ($Associations as $a) {
+            IPS_SetVariableProfileAssociation($Name, $a[0], $a[1], '', -1);
+        }
+    }
+
+    private function updateInputProfile()
+    {
+        $assoc = [[-1, 'Andere']];
+        foreach (json_decode($this->ReadAttributeString('INPUTS'), true) ?: [] as $i => $input) {
+            $assoc[] = [$i, $input['label']];
+        }
+        $this->setProfileAssociations($this->inputProfileName(), 1, 'TV', $assoc);
+    }
+
+    private function updateAppProfile()
+    {
+        $assoc = [];
+        foreach (json_decode($this->ReadAttributeString('APPS'), true) ?: [] as $i => $app) {
+            $assoc[] = [$i, $app['title']];
+        }
+        if (count($assoc) == 0) {
+            $assoc[] = [-1, '–'];
+        }
+        $this->setProfileAssociations($this->appProfileName(), 1, 'Script', $assoc);
+    }
+
+    private function refreshInputs()
+    {
+        $p = $this->ssap('ssap://tv/getExternalInputList');
+        if (!is_array($p) || !isset($p['devices']) || !is_array($p['devices'])) {
+            $this->Log("Could not read input list");
+            return false;
+        }
+        $inputs = [];
+        foreach ($p['devices'] as $d) {
+            if (!isset($d['id'])) continue;
+            $inputs[] = ['id' => $d['id'], 'label' => ($d['label'] ?? $d['id']), 'appId' => ($d['appId'] ?? '')];
+        }
+        $this->WriteAttributeString('INPUTS', json_encode($inputs));
+        $this->updateInputProfile();
+        return true;
+    }
+
+    private function refreshApps()
+    {
+        $p = $this->ssap('ssap://com.webos.applicationManager/listLaunchPoints', null, 8);
+        if (!is_array($p) || !isset($p['launchPoints']) || !is_array($p['launchPoints'])) {
+            $this->Log("Could not read app list");
+            return false;
+        }
+        $apps = [];
+        $seen = [];
+        foreach ($p['launchPoints'] as $lp) {
+            $id = $lp['id'] ?? ($lp['launchPointId'] ?? '');
+            if ($id == '' || isset($seen[$id])) continue;
+            $seen[$id] = true;
+            $apps[] = ['id' => $id, 'title' => ($lp['title'] ?? $id)];
+        }
+        usort($apps, function ($a, $b) { return strcasecmp($a['title'], $b['title']); });
+        $apps = array_slice($apps, 0, 100);
+        $this->WriteAttributeString('APPS', json_encode($apps));
+        $this->updateAppProfile();
+        return true;
+    }
+
+    // Supports both payload formats: {volumeStatus:{volume,muteStatus}} (newer) and {volume,muted}/{volume,mute} (older)
+    private function parseVolume($p)
+    {
+        $volume = null;
+        $muted = null;
+        if (isset($p['volumeStatus']) && is_array($p['volumeStatus'])) {
+            $volume = $p['volumeStatus']['volume'] ?? null;
+            $muted = $p['volumeStatus']['muteStatus'] ?? null;
+        }
+        if ($volume === null && isset($p['volume'])) $volume = $p['volume'];
+        if ($muted === null && isset($p['muted'])) $muted = $p['muted'];
+        if ($muted === null && isset($p['mute'])) $muted = $p['mute'];
+        return [$volume === null ? null : (int)$volume, $muted === null ? null : (bool)$muted];
+    }
+
+    // ---------- Connection & protocol ----------
+
+    private function Connect($timeout = 5)
+    {
+        $ip = trim($this->ReadPropertyString("DEVICE_IP"));
+        $port = $this->ReadPropertyInteger("DEVICE_PORT");
+        if ($ip == '') {
+            $this->Log("No IP address configured");
+            return false;
+        }
+        // Port 3000 = unencrypted (ws), otherwise TLS (wss, default 3001)
+        $this->sock = $this->openWebSocket($ip, $port, $this->ReadPropertyString("DEVICE_PATH"), $port != 3000, $timeout);
+        $this->connected = ($this->sock !== false);
+        if (!$this->connected) {
+            $this->sock = null;
+        } else {
+            $this->Log("Sucessfull WS connection to $ip:$port");
+        }
+        return $this->connected;
+    }
+
+    private function disconnect()
+    {
+        if ($this->sock) {
+            @fclose($this->sock);
+        }
+        $this->sock = null;
+        $this->connected = false;
+        $this->registered = false;
+    }
+
+    // Opens a websocket connection and performs the HTTP upgrade. Returns the stream or false.
+    private function openWebSocket($host, $port, $path, $secure, $timeout)
+    {
         $context = stream_context_create(['ssl' => [
-            //'ciphers' => 'RC4-MD5',
-            'verify_host' => FALSE,
-            'verify_peer_name' => FALSE,
-            'verify_peer' => FALSE
+            'verify_host' => false,
+            'verify_peer_name' => false,
+            'verify_peer' => false,
+            'allow_self_signed' => true
         ]]);
-
-        $this->sock = stream_socket_client('ssl://'.IPS_GetProperty($this->InstanceID, "DEVICE_IP").':'.IPS_GetProperty($this->InstanceID, "DEVICE_PORT"), $errno, $errstr, 30, STREAM_CLIENT_CONNECT, $context);
-
-        socket_set_timeout($this->sock, 0, 10000);
-
-        $this->Log("Sending WS handshake\n$ws_handshake_cmd");
-
-        $response = $this->send($ws_handshake_cmd);
-        if ($response)
-        {
-            $this->Log("WS Handshake Response:\n$response");
-        } 
-        else { 
-            $this->Log("ERROR during WS handshake!");
-            IPS_SetProperty($this->InstanceID, "DEVICE_STATE", 0); // disconnected
+        $stream = @stream_socket_client(($secure ? 'ssl://' : 'tcp://') . $host . ':' . $port, $errno, $errstr, $timeout, STREAM_CLIENT_CONNECT, $context);
+        if (!$stream) {
+            $this->Log("Connection to $host:$port failed: $errstr ($errno)");
+            return false;
         }
-        
-        preg_match('#Sec-WebSocket-Accept:\s(.*)$#mU', $response, $matches);
-        if ($matches) 
-        {
-            $keyAccept = trim($matches[1]);
-            $expectedResonse = base64_encode(pack('H*', sha1(IPS_GetProperty($this->InstanceID, "DEVICE_WSKEY") . '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')));
-            $this->connected = ($keyAccept === $expectedResonse) ? true : false;
-        } 
-        else { 
-            $this->connected=false;
-            IPS_SetProperty($this->InstanceID, "DEVICE_STATE", 0); // disconnected
-        }
-        
-        if ($this->connected) {
-            $this->Log("Sucessfull WS connection to ".IPS_GetProperty($this->InstanceID, "DEVICE_IP").":".IPS_GetProperty($this->InstanceID, "DEVICE_PORT"));
-            IPS_SetProperty($this->InstanceID, "DEVICE_STATE", 2); // connected
+        stream_set_timeout($stream, 0, 50000);
+
+        $key = base64_encode(random_bytes(16));
+        $request = "GET " . ($path == '' ? '/' : $path) . " HTTP/1.1\r\n"
+                 . "Host: $host:$port\r\n"
+                 . "Upgrade: websocket\r\n"
+                 . "Connection: Upgrade\r\n"
+                 . "Sec-WebSocket-Key: $key\r\n"
+                 . "Sec-WebSocket-Version: 13\r\n\r\n";
+        @fwrite($stream, $request);
+
+        // Read HTTP response header line by line
+        $header = '';
+        $deadline = microtime(true) + $timeout;
+        while (microtime(true) < $deadline) {
+            $line = @fgets($stream, 1024);
+            if ($line === false || $line === '') {
+                if (feof($stream)) break;
+                usleep(5000);
+                continue;
+            }
+            $header .= $line;
+            if ($line == "\r\n") break;
         }
 
-        return $this->connected;  
+        $expected = base64_encode(sha1($key . '258EAFA5-E914-47DA-95CA-C5AB0DC85B11', true));
+        if (strpos($header, ' 101 ') === false || !preg_match('#Sec-WebSocket-Accept:\s*(\S+)#i', $header, $m) || trim($m[1]) !== $expected) {
+            $this->Log("WS handshake failed:\n$header");
+            @fclose($stream);
+            return false;
+        }
+        return $stream;
     }
 
-    private function lg_handshake() {
-        $this->Log("Starting LG Handshake");
-        $this->Log("Connection state: ".$this->connected);
-        if (is_null($this->socket)) $this->Connect();
-
-        if ($this->connected)
-        {
-            $handshake = '{"type":"register","id":"register_0","payload":{"forcePairing":false,"pairingType":"PROMPT","client-key":"HANDSHAKEKEYGOESHERE","manifest":{"manifestVersion":1,"appVersion":"1.1","signed":{"created":"20140509","appId":"com.lge.test","vendorId":"com.lge","localizedAppNames":{"":"LG Remote App","ko-KR":"ë¦¬ëª¨ì»¨ ì•±","zxx-XX":"Ð›Ð“ RÑ�Ð¼otÑ� AÐŸÐŸ"},"localizedVendorNames":{"":"LG Electronics"},"permissions":["TEST_SECURE","CONTROL_INPUT_TEXT","CONTROL_MOUSE_AND_KEYBOARD","READ_INSTALLED_APPS","READ_LGE_SDX","READ_NOTIFICATIONS","SEARCH","WRITE_SETTINGS","WRITE_NOTIFICATION_ALERT","CONTROL_POWER","READ_CURRENT_CHANNEL","READ_RUNNING_APPS","READ_UPDATE_INFO","UPDATE_FROM_REMOTE_APP","READ_LGE_TV_INPUT_EVENTS","READ_TV_CURRENT_TIME"],"serial":"2f930e2d2cfe083771f68e4fe7bb07"},"permissions":["LAUNCH","LAUNCH_WEBAPP","APP_TO_APP","CLOSE","TEST_OPEN","TEST_PROTECTED","CONTROL_AUDIO","CONTROL_DISPLAY","CONTROL_INPUT_JOYSTICK","CONTROL_INPUT_MEDIA_RECORDING","CONTROL_INPUT_MEDIA_PLAYBACK","CONTROL_INPUT_TV","CONTROL_POWER","READ_APP_STATUS","READ_CURRENT_CHANNEL","READ_INPUT_DEVICE_LIST","READ_NETWORK_STATE","READ_RUNNING_APPS","READ_TV_CHANNEL_LIST","WRITE_NOTIFICATION_TOAST","READ_POWER_STATE","READ_COUNTRY_INFO"],"signatures":[{"signatureVersion":1,"signature":"eyJhbGdvcml0aG0iOiJSU0EtU0hBMjU2Iiwia2V5SWQiOiJ0ZXN0LXNpZ25pbmctY2VydCIsInNpZ25hdHVyZVZlcnNpb24iOjF9.hrVRgjCwXVvE2OOSpDZ58hR+59aFNwYDyjQgKk3auukd7pcegmE2CzPCa0bJ0ZsRAcKkCTJrWo5iDzNhMBWRyaMOv5zWSrthlf7G128qvIlpMT0YNY+n/FaOHE73uLrS/g7swl3/qH/BGFG2Hu4RlL48eb3lLKqTt2xKHdCs6Cd4RMfJPYnzgvI4BNrFUKsjkcu+WD4OO2A27Pq1n50cMchmcaXadJhGrOqH5YmHdOCj5NSHzJYrsW0HPlpuAx/ECMeIZYDh6RMqaFM2DXzdKX9NmmyqzJ3o/0lkk/N97gfVRLW5hA29yeAwaCViZNCP8iC9aO0q9fQojoa7NQnAtw=="}]}}}';
-            if (strlen(IPS_GetProperty($this->InstanceID, "DEVICE_CODE") > 0))
-                $handshake = str_replace('HANDSHAKEKEYGOESHERE',IPS_GetProperty($this->InstanceID, "DEVICE_CODE"),$handshake);
-            else  
-                $handshake = '{"type":"register","id":"register_0","payload":{"forcePairing":false,"pairingType":"PROMPT","manifest":{"manifestVersion":1,"appVersion":"1.1","signed":{"created":"20140509","appId":"com.lge.test","vendorId":"com.lge","localizedAppNames":{"":"LG Remote App","ko-KR":"ë¦¬ëª¨ì»¨ ì•±","zxx-XX":"Ð›Ð“ RÑ�Ð¼otÑ� AÐŸÐŸ"},"localizedVendorNames":{"":"LG Electronics"},"permissions":["TEST_SECURE","CONTROL_INPUT_TEXT","CONTROL_MOUSE_AND_KEYBOARD","READ_INSTALLED_APPS","READ_LGE_SDX","READ_NOTIFICATIONS","SEARCH","WRITE_SETTINGS","WRITE_NOTIFICATION_ALERT","CONTROL_POWER","READ_CURRENT_CHANNEL","READ_RUNNING_APPS","READ_UPDATE_INFO","UPDATE_FROM_REMOTE_APP","READ_LGE_TV_INPUT_EVENTS","READ_TV_CURRENT_TIME"],"serial":"2f930e2d2cfe083771f68e4fe7bb07"},"permissions":["LAUNCH","LAUNCH_WEBAPP","APP_TO_APP","CLOSE","TEST_OPEN","TEST_PROTECTED","CONTROL_AUDIO","CONTROL_DISPLAY","CONTROL_INPUT_JOYSTICK","CONTROL_INPUT_MEDIA_RECORDING","CONTROL_INPUT_MEDIA_PLAYBACK","CONTROL_INPUT_TV","CONTROL_POWER","READ_APP_STATUS","READ_CURRENT_CHANNEL","READ_INPUT_DEVICE_LIST","READ_NETWORK_STATE","READ_RUNNING_APPS","READ_TV_CHANNEL_LIST","WRITE_NOTIFICATION_TOAST","READ_POWER_STATE","READ_COUNTRY_INFO"],"signatures":[{"signatureVersion":1,"signature":"eyJhbGdvcml0aG0iOiJSU0EtU0hBMjU2Iiwia2V5SWQiOiJ0ZXN0LXNpZ25pbmctY2VydCIsInNpZ25hdHVyZVZlcnNpb24iOjF9.hrVRgjCwXVvE2OOSpDZ58hR+59aFNwYDyjQgKk3auukd7pcegmE2CzPCa0bJ0ZsRAcKkCTJrWo5iDzNhMBWRyaMOv5zWSrthlf7G128qvIlpMT0YNY+n/FaOHE73uLrS/g7swl3/qH/BGFG2Hu4RlL48eb3lLKqTt2xKHdCs6Cd4RMfJPYnzgvI4BNrFUKsjkcu+WD4OO2A27Pq1n50cMchmcaXadJhGrOqH5YmHdOCj5NSHzJYrsW0HPlpuAx/ECMeIZYDh6RMqaFM2DXzdKX9NmmyqzJ3o/0lkk/N97gfVRLW5hA29yeAwaCViZNCP8iC9aO0q9fQojoa7NQnAtw=="}]}}}';
-            
-            $this->Log("Sending LG handshake\n$handshake");
-            $response = $this->send($this->hybi10Encode($handshake));
-            if ($response)
-            {
-                $this->Log("LG Handshake Response\n".$this->json_string($response));
-                $result = $this->json_array($response);
-                if ($result && array_key_exists('id',$result) &&  $result['id']=='result_0' && array_key_exists('client-key',$result['payload']))
-                {
-                    if (IPS_GetProperty($this->InstanceID, "DEVICE_CODE") == $result['payload']['client-key']);
-                        $this->Log("LG Client-Key successfully approved"); 
-                } 
-                else if ($result && array_key_exists('id',$result) &&  $result['id']=='register_0' && array_key_exists('pairingType',$result['payload']) && array_key_exists('returnValue',$result['payload']))
-                {
-                    if ($result['payload']['pairingType'] == "PROMPT" && $result['payload']['returnValue'] == "true") 
-                    {
-                        $starttime = microtime(1);
-                        $lg_key_received = false;
-                        $error_received = false;
-                        do
-                        {
-                            $response = @fread($this->sock, 8192);
-                            $result = $this->json_array($response);
-                            if ($result && array_key_exists('id',$result) &&  $result['id']=='register_0' && is_array($result['payload']) && array_key_exists('client-key',$result['payload']))
-                            {
-                                $lg_key_received = true;
-                                $lg_key = $result['payload']['client-key'];
-                                IPS_SetProperty($this->InstanceID, "DEVICE_CODE", $lg_key);
-                                IPS_ApplyChanges($this->InstanceID);
-                                $this->Log("LG Client-Key successfully received and applied: $lg_key"); 
-                            } 
-                            else if ($result && array_key_exists('id',$result) &&  $result['id']=='register_0' && array_key_exists('error',$result))
-                            {
-                                $error_received = true;
-                                $this->Log("ERROR: ".$result['error']);
-                            }
-                            usleep(200000);
-                            $time = microtime(1);
-                        } 
-                        while ($time-$starttime<60 && !$lg_key_received && !$error_received);
-                    }
-                }
-            } 
-            else $this->Log("ERROR during LG handshake:");
-        } 
-        else return FALSE; 
-    }
-
-    private function send($msg)
+    private function sendFrame($stream, $payload, $opcode = 0x1)
     {
-        @fwrite($this->sock, $msg);
-        usleep(250000);
-        $response = @fread($this->sock, 8192);
-        return $response;
+        if (!$stream) return false;
+        $len = strlen($payload);
+        $frame = chr(0x80 | $opcode);
+        if ($len <= 125) {
+            $frame .= chr(0x80 | $len);
+        } elseif ($len <= 65535) {
+            $frame .= chr(0x80 | 126) . pack('n', $len);
+        } else {
+            $frame .= chr(0x80 | 127) . pack('J', $len);
+        }
+        $mask = random_bytes(4);
+        $frame .= $mask;
+        for ($i = 0; $i < $len; $i++) {
+            $frame .= $payload[$i] ^ $mask[$i % 4];
+        }
+        $written = 0;
+        while ($written < strlen($frame)) {
+            $n = @fwrite($stream, substr($frame, $written));
+            if ($n === false || $n === 0) return false;
+            $written += $n;
+        }
+        return true;
     }
 
-    private function send_command($cmd)
-	{
-        $response = null;
-
-        $this->Log("Current Connection State: ".IPS_GetProperty($this->InstanceID, "DEVICE_STATE"));
-
-		$this->lg_handshake();
-
-		if (IPS_GetProperty($this->InstanceID, "DEVICE_STATE") == 2)
-		{
-			$this->Log("Sending command: ".$cmd);
-			$response = $this->send($this->hybi10Encode($cmd));
-			
-            if ($response) {
-                $this->Log("raw Command response: ".$response);
-                $response = $this->json_string($response);
-				$this->Log("Command response: ".$response);
+    private function readBytes($stream, $n, $deadline)
+    {
+        $buf = '';
+        while (strlen($buf) < $n) {
+            if (microtime(true) > $deadline) return null;
+            $chunk = @fread($stream, $n - strlen($buf));
+            if ($chunk === false || $chunk === '') { // false/'' = no data yet (read timeout)
+                if (feof($stream)) {
+                    $this->connected = false;
+                    return null;
+                }
+                usleep(5000);
+                continue;
             }
-			else 
-				$this->Log("Command did not send response or error during send!");			
-		} 
-
-        $this->Log("Current JSON Response: ".print_r(json_decode($response), true));
-        return json_decode($response);
-	}
-    
-    
-    protected function RegisterProfileString($Name, $Icon, $Prefix, $Suffix, $MinValue, $MaxValue, $StepSize) {
-        if(!IPS_VariableProfileExists($Name)) {
-            IPS_CreateVariableProfile($Name, 3);
-        } else {
-            $profile = IPS_GetVariableProfile($Name);
-            if($profile['ProfileType'] != 3)
-            throw new Exception("Variable profile type does not match for profile ".$Name);
+            $buf .= $chunk;
         }
-        
-        IPS_SetVariableProfileIcon($Name, $Icon);
-        IPS_SetVariableProfileText($Name, $Prefix, $Suffix);
-        @IPS_SetVariableProfileValues($Name, $MinValue, $MaxValue, $StepSize);
+        return $buf;
     }
 
-    protected function RegisterProfileStringEx($Name, $Icon, $Prefix, $Suffix, $Associations) {
-        if ( sizeof($Associations) === 0 ){
-            $MinValue = 0;
-            $MaxValue = 0;
-        } else {
-            $MinValue = $Associations[0][0];
-            $MaxValue = $Associations[sizeof($Associations)-1][0];
-        }
-        
-        $this->RegisterProfileString($Name, $Icon, $Prefix, $Suffix, $MinValue, $MaxValue, 0);
-        
-        foreach($Associations as $Association) {
-            IPS_SetVariableProfileAssociation($Name, $Association[0], $Association[1], $Association[2], $Association[3]);
-        }   
-    }
-    
-    
-    protected function RegisterProfileInteger($Name, $Icon, $Prefix, $Suffix, $MinValue, $MaxValue, $StepSize) {
-        if(!IPS_VariableProfileExists($Name)) {
-            IPS_CreateVariableProfile($Name, 1);
-        } else {
-            $profile = IPS_GetVariableProfile($Name);
-            if($profile['ProfileType'] != 1)
-            throw new Exception("Variable profile type does not match for profile ".$Name);
-        }
-        
-        IPS_SetVariableProfileIcon($Name, $Icon);
-        IPS_SetVariableProfileText($Name, $Prefix, $Suffix);
-        IPS_SetVariableProfileValues($Name, $MinValue, $MaxValue, $StepSize);
-        
-    }
-
-    protected function RegisterProfileIntegerEx($Name, $Icon, $Prefix, $Suffix, $Associations) {
-        if ( sizeof($Associations) === 0 ){
-            $MinValue = 0;
-            $MaxValue = 0;
-        } else {
-            $MinValue = $Associations[0][0];
-            $MaxValue = $Associations[sizeof($Associations)-1][0];
-        }
-        
-        $this->RegisterProfileInteger($Name, $Icon, $Prefix, $Suffix, $MinValue, $MaxValue, 0);
-        
-        foreach($Associations as $Association) {
-            IPS_SetVariableProfileAssociation($Name, $Association[0], $Association[1], $Association[2], $Association[3]);
-        }
-        
-    }
-
-    protected function RegisterProfileBoolean($Name, $Icon, $Prefix, $Suffix, $MinValue, $MaxValue, $StepSize) {
-        if(!IPS_VariableProfileExists($Name)) {
-            IPS_CreateVariableProfile($Name, 0);
-        } else {
-            $profile = IPS_GetVariableProfile($Name);
-            if($profile['ProfileType'] != 0)
-            throw new Exception("Variable profile type does not match for profile ".$Name);
-        }
-        
-        IPS_SetVariableProfileIcon($Name, $Icon);
-        IPS_SetVariableProfileText($Name, $Prefix, $Suffix);
-        IPS_SetVariableProfileValues($Name, $MinValue, $MaxValue, $StepSize);  
-    }
-    
-    protected function RegisterProfileBooleanEx($Name, $Icon, $Prefix, $Suffix, $Associations) {
-        if ( sizeof($Associations) === 0 ){
-            $MinValue = 0;
-            $MaxValue = 0;
-        } else {
-            $MinValue = $Associations[0][0];
-            $MaxValue = $Associations[sizeof($Associations)-1][0];
-        }
-        
-        $this->RegisterProfileBoolean($Name, $Icon, $Prefix, $Suffix, $MinValue, $MaxValue, 0);
-        
-        foreach($Associations as $Association) {
-            IPS_SetVariableProfileAssociation($Name, $Association[0], $Association[1], $Association[2], $Association[3]);
-        }
-        
-    }
-
-    private function hybi10Encode($payload, $type = 'text', $masked = true) {
-        $frameHead = array();
-        $frame = '';
-        $payloadLength = strlen($payload);
-
-        switch ($type) {
-            case 'text':
-                $frameHead[0] = 129;
-                break;
-
-            case 'close':
-                $frameHead[0] = 136;
-                break;
-
-            case 'ping':
-                $frameHead[0] = 137;
-                break;
-
-            case 'pong':
-                $frameHead[0] = 138;
-                break;
-        }
-
-        if ($payloadLength > 65535)
-        {
-            $payloadLengthBin = str_split(sprintf('%064b', $payloadLength), 8);
-            $frameHead[1] = ($masked === true) ? 255 : 127;
-            for ($i = 0; $i < 8; $i++) 
-            {
-                $frameHead[$i + 2] = bindec($payloadLengthBin[$i]);
+    // Reads one complete text message (handles fragmentation, ping, close). Returns string or null.
+    private function readMessage($stream, $deadline)
+    {
+        $message = '';
+        while (true) {
+            $head = $this->readBytes($stream, 2, $deadline);
+            if ($head === null) return null;
+            $fin = (ord($head[0]) & 0x80) != 0;
+            $opcode = ord($head[0]) & 0x0F;
+            $masked = (ord($head[1]) & 0x80) != 0;
+            $len = ord($head[1]) & 0x7F;
+            if ($len == 126) {
+                $ext = $this->readBytes($stream, 2, $deadline);
+                if ($ext === null) return null;
+                $len = unpack('n', $ext)[1];
+            } elseif ($len == 127) {
+                $ext = $this->readBytes($stream, 8, $deadline);
+                if ($ext === null) return null;
+                $len = unpack('J', $ext)[1];
             }
-            if ($frameHead[2] > 127) 
-            {
-                $this->close(1004);
+            $mask = $masked ? $this->readBytes($stream, 4, $deadline) : '';
+            $data = $len > 0 ? $this->readBytes($stream, $len, $deadline) : '';
+            if ($data === null) return null;
+            if ($masked) {
+                for ($i = 0; $i < $len; $i++) $data[$i] = $data[$i] ^ $mask[$i % 4];
+            }
+
+            if ($opcode == 0x9) { // ping -> pong
+                $this->sendFrame($stream, $data, 0xA);
+                continue;
+            }
+            if ($opcode == 0xA) continue; // pong
+            if ($opcode == 0x8) { // close
+                $this->connected = false;
+                return null;
+            }
+            $message .= $data;
+            if ($fin) return $message;
+        }
+    }
+
+    // Waits for the message with the given id. Returns decoded array or null on timeout.
+    private function waitForId($id, $timeout)
+    {
+        $deadline = microtime(true) + $timeout;
+        while (microtime(true) < $deadline) {
+            $raw = $this->readMessage($this->sock, $deadline);
+            if ($raw === null) return null;
+            $msg = json_decode($raw, true);
+            if (!is_array($msg)) {
+                $this->Log("Non JSON message ignored: $raw");
+                continue;
+            }
+            if (($msg['id'] ?? '') == $id) {
+                $this->Log("Response: $raw");
+                return $msg;
+            }
+            $this->Log("Other message ignored: $raw");
+        }
+        return null;
+    }
+
+    private function lg_handshake($connectTimeout = 5)
+    {
+        if ($this->registered && $this->connected) {
+            return true;
+        }
+        $this->disconnect();
+        if (!$this->Connect($connectTimeout)) {
+            return false;
+        }
+
+        $key = $this->ReadPropertyString("DEVICE_CODE");
+        $unsigned = $this->ReadAttributeBoolean("UNSIGNED_PAIRING");
+        $handshake = $unsigned ? $this->buildUnsignedHandshake($key) : $this->buildSignedHandshake($key);
+        $this->Log("Sending LG handshake\n$handshake");
+        $this->sendFrame($this->sock, $handshake);
+
+        $deadline = microtime(true) + 8;
+        while (true) {
+            $res = $this->waitForId('register_0', max(0.1, $deadline - microtime(true)));
+            if ($res === null) {
+                $this->Log("ERROR during LG handshake: no response / timeout");
+                $this->disconnect();
                 return false;
             }
-        } 
-        elseif ($payloadLength > 125) 
-        {
-            $payloadLengthBin = str_split(sprintf('%016b', $payloadLength), 8);
-            $frameHead[1] = ($masked === true) ? 254 : 126;
-            $frameHead[2] = bindec($payloadLengthBin[0]);
-            $frameHead[3] = bindec($payloadLengthBin[1]);
-        } 
-        else    
-        {
-            $frameHead[1] = ($masked === true) ? $payloadLength + 128 : $payloadLength;
-        }
-        foreach (array_keys($frameHead) as $i) 
-        {
-            $frameHead[$i] = chr($frameHead[$i]);
-        }
-        if ($masked === true) 
-        {
-            $mask = array();
-            for ($i = 0; $i < 4; $i++)
-            {
-                $mask[$i] = chr(rand(0, 255));
+            $type = $res['type'] ?? '';
+
+            if ($type == 'registered') {
+                $newKey = $res['payload']['client-key'] ?? '';
+                $this->registered = true;
+                if ($newKey != '' && $newKey != $key) {
+                    IPS_SetProperty($this->InstanceID, "DEVICE_CODE", $newKey);
+                    IPS_ApplyChanges($this->InstanceID);
+                    $this->Log("LG Client-Key successfully received and applied: $newKey");
+                } else {
+                    $this->Log("LG Client-Key successfully approved");
+                }
+                return true;
             }
-            $frameHead = array_merge($frameHead, $mask);
+
+            if ($type == 'response' && ($res['payload']['pairingType'] ?? '') == 'PROMPT') {
+                $this->Log("Please confirm the pairing request on the TV (60 s)");
+                $deadline = microtime(true) + 60;
+                continue;
+            }
+
+            if ($type == 'error') {
+                $error = $res['error'] ?? '';
+                // webOS 26+ rejects the signed manifest with "403 ... blacklisted certificate detected".
+                // Reconnect and register again with the unsigned manifest (same approach as lgtv2 2.0.2 / aiowebostv 0.9.2).
+                if (!$unsigned && stripos($error, 'blacklisted certificate') !== false) {
+                    $this->Log("Signed manifest rejected by TV (webOS 26+), retrying with unsigned manifest");
+                    $this->WriteAttributeBoolean("UNSIGNED_PAIRING", true);
+                    $unsigned = true;
+                    $this->disconnect();
+                    if (!$this->Connect($connectTimeout)) return false;
+                    $handshake = $this->buildUnsignedHandshake($key);
+                    $this->Log("Sending LG handshake (unsigned)\n$handshake");
+                    $this->sendFrame($this->sock, $handshake);
+                    $deadline = microtime(true) + 8;
+                    continue;
+                }
+                $this->Log("ERROR: $error");
+                $this->disconnect();
+                return false;
+            }
         }
-        $frame = implode('', $frameHead);
-        for ($i = 0; $i < $payloadLength; $i++) 
-        {
-            $frame .= ($masked === true) ? $payload[$i] ^ $mask[$i % 4] : $payload[$i];
-        }
-        return $frame;
     }
 
-    private function json_array($str)
+    private function buildSignedHandshake($clientKey)
     {
-        $result = json_decode($this->json_string($str),true);
-        return $result;
-    }
-    
-    private function json_string($str)
-    {
-        $from = strpos($str,"{");
-        $to = strripos($str,"}");
-        $len = $to-$from+1;
-        $result = substr($str,$from,$len);
-        if(!json_validate($result)) {
-            $this->Log("NON Valid JSON string extracted: ".$result);
-            $from = strpos($str,"{")+1;
-            $to = strripos($str,"}");
-            $len = $to-$from+1;
-            $result = substr($str,$from,$len);
+        $handshake = self::SIGNED_HANDSHAKE;
+        if (strlen($clientKey) > 0) {
+            $handshake = str_replace('"pairingType":"PROMPT",', '"pairingType":"PROMPT","client-key":' . json_encode($clientKey) . ',', $handshake);
         }
-        return $result;
+        return $handshake;
+    }
+
+    // Registration payload without the LG test signature (required for webOS 26+).
+    // Permission list taken from lgtv2 (pairing.json) incl. CONTROL_INPUT_TEXT and
+    // CONTROL_MOUSE_AND_KEYBOARD which are needed for key/pointer input without signature.
+    // Note: without signature the TV does not grant WRITE_SETTINGS and a few other protected permissions.
+    private function buildUnsignedHandshake($clientKey)
+    {
+        $permissions = [
+            "LAUNCH", "LAUNCH_WEBAPP", "APP_TO_APP", "CLOSE", "TEST_OPEN", "TEST_PROTECTED",
+            "CONTROL_AUDIO", "CONTROL_DISPLAY", "CONTROL_INPUT_JOYSTICK", "CONTROL_INPUT_MEDIA_RECORDING",
+            "CONTROL_INPUT_MEDIA_PLAYBACK", "CONTROL_INPUT_TV", "CONTROL_POWER", "READ_APP_STATUS",
+            "READ_CURRENT_CHANNEL", "READ_INPUT_DEVICE_LIST", "READ_NETWORK_STATE", "READ_RUNNING_APPS",
+            "READ_TV_CHANNEL_LIST", "WRITE_NOTIFICATION_TOAST", "READ_POWER_STATE", "READ_COUNTRY_INFO",
+            "READ_SETTINGS", "CONTROL_TV_SCREEN", "CONTROL_TV_STANBY", "CONTROL_FAVORITE_GROUP",
+            "CONTROL_USER_INFO", "CHECK_BLUETOOTH_DEVICE", "CONTROL_BLUETOOTH", "CONTROL_TIMER_INFO",
+            "STB_INTERNAL_CONNECTION", "CONTROL_RECORDING", "READ_RECORDING_STATE", "WRITE_RECORDING_LIST",
+            "READ_RECORDING_LIST", "READ_RECORDING_SCHEDULE", "WRITE_RECORDING_SCHEDULE",
+            "READ_STORAGE_DEVICE_LIST", "READ_TV_PROGRAM_INFO", "CONTROL_BOX_CHANNEL",
+            "READ_TV_ACR_AUTH_TOKEN", "READ_TV_CONTENT_STATE", "READ_TV_CURRENT_TIME",
+            "ADD_LAUNCHER_CHANNEL", "SET_CHANNEL_SKIP", "RELEASE_CHANNEL_SKIP", "CONTROL_CHANNEL_BLOCK",
+            "DELETE_SELECT_CHANNEL", "CONTROL_CHANNEL_GROUP", "SCAN_TV_CHANNELS", "CONTROL_TV_POWER",
+            "CONTROL_WOL", "CONTROL_INPUT_TEXT", "CONTROL_MOUSE_AND_KEYBOARD"
+        ];
+
+        $payload = [
+            "forcePairing" => false,
+            "pairingType"  => "PROMPT",
+            "manifest"     => [
+                "manifestVersion" => 1,
+                "appVersion"      => "1.0",
+                "permissions"     => $permissions
+            ]
+        ];
+        if (strlen($clientKey) > 0) {
+            $payload["client-key"] = $clientKey;
+        }
+
+        return json_encode(["type" => "register", "id" => "register_0", "payload" => $payload], JSON_UNESCAPED_SLASHES);
+    }
+
+    // Sends a ssap request and returns the payload as array (null on error/timeout)
+    private function ssap($uri, $payload = null, $timeout = 4)
+    {
+        if (!$this->lg_handshake()) {
+            return null;
+        }
+        $id = 'req_' . (++$this->msgCounter);
+        $msg = ['id' => $id, 'type' => 'request', 'uri' => $uri];
+        if ($payload !== null) {
+            $msg['payload'] = $payload;
+        }
+        $json = json_encode($msg, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $this->Log("Sending command: $json");
+        if (!$this->sendFrame($this->sock, $json)) {
+            $this->disconnect();
+            return null;
+        }
+        $res = $this->waitForId($id, $timeout);
+        if ($res === null) {
+            $this->Log("No response for $uri");
+            return null;
+        }
+        if (($res['type'] ?? '') == 'error') {
+            $this->Log("Error for $uri: " . ($res['error'] ?? ''));
+            return null;
+        }
+        return $res['payload'] ?? [];
+    }
+
+    // Legacy: sends a complete JSON command string and returns the full response as object (as before)
+    private function send_command($cmd)
+    {
+        $req = json_decode($cmd, true);
+        if (!is_array($req) || !isset($req['id'])) {
+            $this->Log("Invalid command: $cmd");
+            return null;
+        }
+        if (!$this->lg_handshake()) {
+            return null;
+        }
+        $this->Log("Sending command: " . $cmd);
+        if (!$this->sendFrame($this->sock, $cmd)) {
+            $this->disconnect();
+            return null;
+        }
+        $res = $this->waitForId($req['id'], 5);
+        if ($res === null) {
+            $this->Log("Command did not send response or error during send!");
+            return null;
+        }
+        return json_decode(json_encode($res));
+    }
+
+    // Remote control buttons need a second websocket (pointer input socket)
+    private function sendPointerButton($name)
+    {
+        $p = $this->ssap('ssap://com.webos.service.networkinput/getPointerInputSocket');
+        if (!is_array($p) || empty($p['socketPath'])) {
+            $this->Log("Could not get pointer input socket");
+            return false;
+        }
+        $u = parse_url($p['socketPath']);
+        if (!$u || !isset($u['host'])) {
+            $this->Log("Invalid pointer socket path: " . $p['socketPath']);
+            return false;
+        }
+        $secure = ($u['scheme'] ?? 'wss') == 'wss';
+        $port = $u['port'] ?? ($secure ? 3001 : 3000);
+        $path = ($u['path'] ?? '/') . (isset($u['query']) ? '?' . $u['query'] : '');
+        $stream = $this->openWebSocket($u['host'], $port, $path, $secure, 3);
+        if (!$stream) {
+            return false;
+        }
+        $ok = $this->sendFrame($stream, "type:button\nname:" . strtoupper($name) . "\n\n");
+        usleep(100000);
+        @fclose($stream);
+        $this->Log("Button $name sent");
+        return $ok;
     }
 
     private function generateRandomString($length = 10, $addSpaces = true, $addNumbers = true)
-    {  
-        $characters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!"Â§$%&/()=[]{}';
+    {
+        $characters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!"§$%&/()=[]{}';
         $useChars = array();
-        
+
         for($i = 0; $i < $length; $i++)
         {
             $useChars[] = $characters[mt_rand(0, strlen($characters)-1)];
         }
-        
+
         if($addSpaces === true)
         {
             array_push($useChars, ' ', ' ', ' ', ' ', ' ', ' ');
         }
-        
+
         if($addNumbers === true)
         {
             array_push($useChars, rand(0,9), rand(0,9), rand(0,9));
         }
-        
+
         shuffle($useChars);
-        
+
         $randomString = trim(implode('', $useChars));
         $randomString = substr($randomString, 0, $length);
 
         return $randomString;
     }
 
-    protected function GetParent()
-    {
-        $instance = IPS_GetInstance($this->InstanceID);
-        return ($instance['ConnectionID'] > 0) ? $instance['ConnectionID'] : false;
-    }
-
     private function Log($message) {
-        if(IPS_GetProperty($this->InstanceID, "LOGLEVEL") == 1)
+        $this->SendDebug('WebOS', $message, 0);
+        if($this->ReadPropertyInteger("LOGLEVEL") == 1)
             IPS_LogMessage(IPS_GetObject($this->InstanceID)['ObjectName'], $message);
     }
 }

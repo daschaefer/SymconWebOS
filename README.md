@@ -16,8 +16,21 @@ Funktionen:
 - Abrufen und Ändern der Soundausgabe (TV-Lautsprecher, externes Audio)
 - Unterstützung einer automatischen Registrierung des Geräts über einen Gerätecode und Websocket Schlüssel
 
+Variablen:
+- Im Formular kann per Häkchen ausgewählt werden, welche Variablen unter der Instanz angelegt werden:
+  Power, Lautstärke + Stumm, Eingang, aktuelle App, App starten, Fernbedienung, Wiedergabe, Sender, Tonausgabe.
+- Schaltbare Variablen senden den Befehl direkt an den TV (z.B. Lautstärke-Slider, Eingang wählen, App starten).
+- Der Status wird zyklisch abgefragt (Intervall im Formular einstellbar, Standard 10 Sekunden, 0 = aus).
+- Eingänge und Apps werden nach der Registrierung automatisch eingelesen, bei Bedarf über "Eingänge und Apps neu einlesen".
+- Fernbedienungstasten werden über den Pointer-Socket des TVs gesendet (`WEBOS_SendButton($id, "UP")` usw.).
+
 Folgende Methoden werden bereitgestellt:
 - `WEBOS_RegisterDevice`: Startet den Registrierungsprozess für das Gerät, um die erforderlichen Berechtigungen zu erhalten, damit das Modul mit dem Gerät kommunizieren kann.
+- `WEBOS_Update`: Fragt den Status ab und aktualisiert die Variablen.
+- `WEBOS_RefreshLists`: Liest Eingänge und installierte Apps neu ein.
+- `WEBOS_SetVolume`: Setzt die Lautstärke (0-100).
+- `WEBOS_SetMute`: Stummschaltung ein (true) oder aus (false).
+- `WEBOS_SendButton`: Sendet eine Fernbedienungstaste (z.B. "UP", "DOWN", "LEFT", "RIGHT", "ENTER", "BACK", "HOME", "EXIT", "MENU", "INFO", "RED").
 - `WEBOS_PowerOn`: Schaltet das Gerät ein.
 - `WEBOS_PowerOff`: Schaltet das Gerät aus.
 - `WEBOS_GetPowerState`: Gibt den aktuellen Ein-/Ausschaltstatus des Geräts zurück.
@@ -53,6 +66,11 @@ Folgende Methoden werden bereitgestellt:
 - `WEBOS_Rewind`: Spult die Wiedergabe von Medieninhalten auf dem Gerät zurück.
 - `WEBOS_FastForward`: Spult die Wiedergabe von Medieninhalten auf dem Gerät vorwärts.
 - `WEBOS_DisplayMessage`: Zeigt eine benutzerdefinierte Nachricht auf dem Bildschirm des Geräts an.
+
+Hinweis zu webOS 26:
+- Ab webOS 26 lehnen LG-Geräte die bisher verwendete signierte Registrierung ab ("403 Pairing rejected: blacklisted certificate detected").
+- Das Modul erkennt diesen Fehler automatisch und registriert sich erneut ohne Signatur. Am TV erscheint dann die normale Kopplungsabfrage.
+- Ohne Signatur vergibt der TV einige geschützte Rechte nicht mehr (z.B. WRITE_SETTINGS); die Funktionen dieses Moduls sind davon nicht betroffen.
 
 Installation:
 1. Modul importieren

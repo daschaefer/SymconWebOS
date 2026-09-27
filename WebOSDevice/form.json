@@ -1,19 +1,131 @@
 {
-	"elements":
-	[
-        { "name": "DEVICE_IP",      "type": "ValidationTextBox",    "caption": "IP-Adresse:" },
-        { "name": "DEVICE_MAC",     "type": "ValidationTextBox",    "caption": "MAC-Adresse (z.B. AA:BB:CC:DD:EE:FF):" },
-        { "name": "DEVICE_PORT",    "type": "NumberSpinner",        "caption": "Port:" },
-        { "name": "LOGLEVEL",       "type": "Select",               "caption": "Log-Level:",
+    "elements": [
+        {
+            "name": "DEVICE_IP",
+            "type": "ValidationTextBox",
+            "caption": "IP-Adresse:"
+        },
+        {
+            "name": "DEVICE_MAC",
+            "type": "ValidationTextBox",
+            "caption": "MAC-Adresse (z.B. AA:BB:CC:DD:EE:FF):"
+        },
+        {
+            "name": "DEVICE_PORT",
+            "type": "NumberSpinner",
+            "caption": "Port:"
+        },
+        {
+            "name": "UPDATE_INTERVAL",
+            "type": "NumberSpinner",
+            "caption": "Status abfragen alle",
+            "suffix": "Sekunden (0 = aus)",
+            "minimum": 0
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Variablen",
+            "expanded": true,
+            "items": [
+                {
+                    "type": "Label",
+                    "caption": "Auswählen, welche Variablen unter der Instanz angelegt werden:"
+                },
+                {
+                    "name": "VAR_POWER",
+                    "type": "CheckBox",
+                    "caption": "Power (Ein/Aus)"
+                },
+                {
+                    "name": "VAR_VOLUME",
+                    "type": "CheckBox",
+                    "caption": "Lautstärke und Stummschaltung"
+                },
+                {
+                    "name": "VAR_INPUT",
+                    "type": "CheckBox",
+                    "caption": "Eingang (HDMI usw.)"
+                },
+                {
+                    "name": "VAR_APP",
+                    "type": "CheckBox",
+                    "caption": "Aktuelle App (Anzeige)"
+                },
+                {
+                    "name": "VAR_APPLAUNCH",
+                    "type": "CheckBox",
+                    "caption": "App starten (Auswahl)"
+                },
+                {
+                    "name": "VAR_REMOTE",
+                    "type": "CheckBox",
+                    "caption": "Fernbedienung (Pfeiltasten, OK, Zurück, Home, Farbtasten)"
+                },
+                {
+                    "name": "VAR_MEDIA",
+                    "type": "CheckBox",
+                    "caption": "Wiedergabe (Play, Pause, Stop, Spulen)"
+                },
+                {
+                    "name": "VAR_CHANNEL",
+                    "type": "CheckBox",
+                    "caption": "Sender (aktueller Sender, Sender +/-)"
+                },
+                {
+                    "name": "VAR_SOUNDOUTPUT",
+                    "type": "CheckBox",
+                    "caption": "Tonausgabe (TV-Lautsprecher, ARC, Optisch, Bluetooth)"
+                }
+            ]
+        },
+        {
+            "name": "LOGLEVEL",
+            "type": "Select",
+            "caption": "Log-Level:",
             "options": [
-                { "caption": "Aus", "value": 0 },
-                { "caption": "Debug", "value": 1 }
+                {
+                    "caption": "Aus",
+                    "value": 0
+                },
+                {
+                    "caption": "Debug",
+                    "value": 1
+                }
             ]
         }
     ],
-    "actions":
-    [
-        { "type": "Button", "label": "Gerät registrieren", "onClick": "WEBOS_RegisterDevice($id);" },
-        { "type": "Button", "label": "Geräteverbindung testen", "onClick": "WEBOS_Test($id);" }
+    "actions": [
+        {
+            "type": "Button",
+            "label": "Gerät registrieren",
+            "onClick": "WEBOS_RegisterDevice($id);"
+        },
+        {
+            "type": "Button",
+            "label": "Geräteverbindung testen",
+            "onClick": "WEBOS_Test($id);"
+        },
+        {
+            "type": "Button",
+            "label": "Status jetzt abfragen",
+            "onClick": "WEBOS_Update($id);"
+        },
+        {
+            "type": "Button",
+            "label": "Eingänge und Apps neu einlesen",
+            "onClick": "WEBOS_RefreshLists($id);"
+        }
+    ],
+    "status": [
+        {
+            "code": 102,
+            "icon": "active",
+            "caption": "Instanz ist aktiv"
+        },
+        {
+            "code": 104,
+            "icon": "inactive",
+            "caption": "Bitte IP-Adresse eintragen"
+        }
     ]
 }

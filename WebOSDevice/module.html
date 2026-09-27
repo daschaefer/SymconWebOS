@@ -124,10 +124,10 @@
     .apps:empty { display: none; }
 
     /* ---------- Full-area page layout ---------- */
-    html.page, body.page { background: var(--body); overflow-y: auto; }
-    body.page #stage { align-items: stretch; justify-content: stretch; height: auto; min-height: 100%; }
+    html.page, body.page { background: var(--body); overflow: hidden; }
+    body.page #stage { display: block; position: relative; }
     body.page #remote {
-        width: 100% !important; min-height: 100vh; transform: none !important;
+        position: absolute; left: 0; top: 0; transform-origin: 0 0; box-sizing: border-box;
         border-radius: 0; box-shadow: none; background: var(--body);
         padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
         gap: 12px; align-content: stretch;
@@ -331,6 +331,12 @@
         var wide = W / Math.max(H, 1) > 1.25;
         remote.classList.toggle('wide', wide);
         if (document.body.classList.contains('page')) {
+            // Work on a phone-sized layout (390 px wide, 740 px in landscape) and scale it to the real area.
+            // The iOS WebFront renders pages ~900 px wide and shrinks them - without this everything would be tiny.
+            var z = Math.max(0.6, Math.min(3, W / (wide ? 740 : 390)));
+            remote.style.transform = 'scale(' + z + ')';
+            remote.style.width = (W / z) + 'px';
+            remote.style.height = (H / z) + 'px';
             // d-pad as large as the free row allows
             var nav = remote.querySelector('.nav'), dp = remote.querySelector('.dpad');
             dp.style.width = dp.style.height = '0px';

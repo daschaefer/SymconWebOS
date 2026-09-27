@@ -91,9 +91,9 @@ class WebOSDevice extends IPSModule
         // Remembers that this device needs the unsigned registration manifest.
         $this->RegisterAttributeBoolean("UNSIGNED_PAIRING", false);
 
-        // Cached lists from the TV (JSON)
-        $this->RegisterAttributeString("INPUTS", "[]");
-        $this->RegisterAttributeString("APPS", "[]");
+        // Lists read from the TV (JSON rows: id, title/label, appId, show) - shown and editable in the form
+        $this->RegisterPropertyString("INPUT_LIST", "[]");
+        $this->RegisterPropertyString("APP_LIST", "[]");
 
         $this->RegisterTimer("Update", 0, 'WEBOS_Update($_IPS[\'TARGET\']);');
     }
@@ -193,11 +193,15 @@ class WebOSDevice extends IPSModule
         }
 
         // Load input/app lists once
-        if ($this->ReadPropertyBoolean('VAR_INPUT') && $this->ReadAttributeString('INPUTS') == '[]') {
-            $this->refreshInputs();
+        $changed = false;
+        if ($this->ReadPropertyBoolean('VAR_INPUT') && count($this->getInputs()) == 0) {
+            $changed = $this->refreshInputs() || $changed;
         }
-        if (($this->ReadPropertyBoolean('VAR_APP') || $this->ReadPropertyBoolean('VAR_APPLAUNCH')) && $this->ReadAttributeString('APPS') == '[]') {
-            $this->refreshApps();
+        if (($this->ReadPropertyBoolean('VAR_APP') || $this->ReadPropertyBoolean('VAR_APPLAUNCH')) && count($this->getApps()) == 0) {
+            $changed = $this->refreshApps() || $changed;
+        }
+        if ($changed) {
+            IPS_ApplyChanges($this->InstanceID);
         }
 
         if ($this->ReadPropertyBoolean('VAR_VOLUME')) {
@@ -215,16 +219,15 @@ class WebOSDevice extends IPSModule
             $p = $this->ssap('ssap://com.webos.applicationManager/getForegroundAppInfo');
             $appId = is_array($p) ? ($p['appId'] ?? '') : '';
 
-            $inputs = json_decode($this->ReadAttributeString('INPUTS'), true) ?: [];
             $inputIndex = -1;
             $name = $appId;
-            foreach ($inputs as $i => $input) {
+            foreach ($this->getInputs() as $i => $input) {
                 if (($input['appId'] ?? '') != '' && $input['appId'] == $appId) {
-                    $inputIndex = $i;
+                    if (!empty($input['show'])) $inputIndex = $i; // only inputs that are part of the selection
                     $name = $input['label'];
                 }
             }
-            foreach (json_decode($this->ReadAttributeString('APPS'), true) ?: [] as $app) {
+            foreach ($this->getApps() as $app) {
                 if ($app['id'] == $appId) {
                     $name = $app['title'];
                 }
@@ -266,8 +269,12 @@ class WebOSDevice extends IPSModule
             $this->Log("RefreshLists: TV not reachable");
             return false;
         }
-        $this->refreshInputs();
-        $this->refreshApps();
+        $changed = $this->refreshInputs();
+        $changed = $this->refreshApps() || $changed;
+        if ($changed) {
+            IPS_ApplyChanges($this->InstanceID);
+        }
+        $this->ReloadForm();
         return true;
     }
 
@@ -432,14 +439,14 @@ class WebOSDevice extends IPSModule
                 $this->setVar('Muted', (bool)$Value);
                 break;
             case 'Input':
-                $inputs = json_decode($this->ReadAttributeString('INPUTS'), true) ?: [];
+                $inputs = $this->getInputs();
                 if (isset($inputs[$Value])) {
                     $response = $this->ssap('ssap://tv/switchInput', ['inputId' => $inputs[$Value]['id']]);
                     $this->setVar('Input', (int)$Value);
                 }
                 break;
             case 'AppLaunch':
-                $apps = json_decode($this->ReadAttributeString('APPS'), true) ?: [];
+                $apps = $this->getApps();
                 if (isset($apps[$Value])) {
                     $response = $this->ssap('ssap://system.launcher/launch', ['id' => $apps[$Value]['id']]);
                     $this->setVar('AppLaunch', (int)$Value);
@@ -734,7 +741,8 @@ class WebOSDevice extends IPSModule
     private function updateInputProfile()
     {
         $assoc = [[-1, 'Andere']];
-        foreach (json_decode($this->ReadAttributeString('INPUTS'), true) ?: [] as $i => $input) {
+        foreach ($this->getInputs() as $i => $input) {
+            if (empty($input['show'])) continue;
             $assoc[] = [$i, $input['label']];
         }
         $this->setProfileAssociations($this->inputProfileName(), 1, 'TV', $assoc);
@@ -743,7 +751,8 @@ class WebOSDevice extends IPSModule
     private function updateAppProfile()
     {
         $assoc = [];
-        foreach (json_decode($this->ReadAttributeString('APPS'), true) ?: [] as $i => $app) {
+        foreach ($this->getApps() as $i => $app) {
+            if (empty($app['show'])) continue;
             $assoc[] = [$i, $app['title']];
         }
         if (count($assoc) == 0) {
@@ -759,14 +768,18 @@ class WebOSDevice extends IPSModule
             $this->Log("Could not read input list");
             return false;
         }
+        $show = $this->showFlags($this->getInputs());
         $inputs = [];
         foreach ($p['devices'] as $d) {
             if (!isset($d['id'])) continue;
-            $inputs[] = ['id' => $d['id'], 'label' => ($d['label'] ?? $d['id']), 'appId' => ($d['appId'] ?? '')];
+            $inputs[] = [
+                'label' => ($d['label'] ?? $d['id']),
+                'id'    => $d['id'],
+                'appId' => ($d['appId'] ?? ''),
+                'show'  => $show[$d['id']] ?? true // new entries are shown by default
+            ];
         }
-        $this->WriteAttributeString('INPUTS', json_encode($inputs));
-        $this->updateInputProfile();
-        return true;
+        return $this->saveList('INPUT_LIST', $inputs);
     }
 
     private function refreshApps()
@@ -782,12 +795,48 @@ class WebOSDevice extends IPSModule
             $id = $lp['id'] ?? ($lp['launchPointId'] ?? '');
             if ($id == '' || isset($seen[$id])) continue;
             $seen[$id] = true;
-            $apps[] = ['id' => $id, 'title' => ($lp['title'] ?? $id)];
+            $apps[] = ['title' => ($lp['title'] ?? $id), 'id' => $id];
         }
         usort($apps, function ($a, $b) { return strcasecmp($a['title'], $b['title']); });
         $apps = array_slice($apps, 0, 100);
-        $this->WriteAttributeString('APPS', json_encode($apps));
-        $this->updateAppProfile();
+        $show = $this->showFlags($this->getApps());
+        foreach ($apps as &$app) {
+            $app['show'] = $show[$app['id']] ?? true; // new entries are shown by default
+        }
+        unset($app);
+        return $this->saveList('APP_LIST', $apps);
+    }
+
+    private function getInputs()
+    {
+        $list = json_decode($this->ReadPropertyString('INPUT_LIST'), true);
+        return is_array($list) ? array_values($list) : [];
+    }
+
+    private function getApps()
+    {
+        $list = json_decode($this->ReadPropertyString('APP_LIST'), true);
+        return is_array($list) ? array_values($list) : [];
+    }
+
+    // id => show flag of an existing list (keeps the user's selection when the list is read again)
+    private function showFlags($list)
+    {
+        $flags = [];
+        foreach ($list as $row) {
+            if (isset($row['id'])) $flags[$row['id']] = !empty($row['show']);
+        }
+        return $flags;
+    }
+
+    // Stores a list in its property. Returns true if it changed (caller applies the changes).
+    private function saveList($Property, $List)
+    {
+        $json = json_encode($List, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if ($json == $this->ReadPropertyString($Property)) {
+            return false;
+        }
+        IPS_SetProperty($this->InstanceID, $Property, $json);
         return true;
     }
 

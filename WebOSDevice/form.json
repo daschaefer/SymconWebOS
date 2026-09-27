@@ -150,6 +150,21 @@
             ]
         },
         {
+            "type": "ExpansionPanel",
+            "caption": "Kachel-Visualisierung",
+            "items": [
+                {
+                    "name": "TILE_REMOTE",
+                    "type": "CheckBox",
+                    "caption": "Instanz als Fernbedienung darstellen (Kachel)"
+                },
+                {
+                    "type": "Label",
+                    "caption": "Die Instanz in der Kachel-Visualisierung verlinken und die Kachel groß genug ziehen (hochkant oder breit). Apps und Eingänge mit Häkchen erscheinen als Schnellwahl."
+                }
+            ]
+        },
+        {
             "name": "LOGLEVEL",
             "type": "Select",
             "caption": "Log-Level:",

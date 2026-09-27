@@ -24,6 +24,12 @@ Variablen:
 - Eingänge und Apps werden nach der Registrierung automatisch eingelesen, bei Bedarf über "Eingänge und Apps neu einlesen".
 - Fernbedienungstasten werden über den Pointer-Socket des TVs gesendet (`WEBOS_SendButton($id, "UP")` usw.).
 
+Fernbedienungs-Kachel:
+- Im Formular unter "Kachel-Visualisierung" kann die Instanz als Fernbedienung dargestellt werden (HTML-SDK, ab IP-Symcon 7.1).
+- Die Instanz in der Kachel-Visualisierung verlinken und die Kachel hochkant oder breit ziehen, die Fernbedienung passt sich an.
+- Enthält Power, Eingangswahl, Home, Einstellungen, Steuerkreuz mit OK, Zurück/Info/Exit, Lautstärke und Sender +/-, Stumm, Wiedergabe, Farbtasten und die angehakten Apps als Schnellwahl.
+- Bei Tonausgabe über ARC/eARC (z.B. Soundbar) kennt der TV die Lautstärke nicht; Lautstärke +/- und Stumm werden per HDMI-CEC an die Soundbar weitergegeben.
+
 Folgende Methoden werden bereitgestellt:
 - `WEBOS_RegisterDevice`: Startet den Registrierungsprozess für das Gerät, um die erforderlichen Berechtigungen zu erhalten, damit das Modul mit dem Gerät kommunizieren kann.
 - `WEBOS_Update`: Fragt den Status ab und aktualisiert die Variablen.

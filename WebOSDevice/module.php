@@ -82,6 +82,9 @@ class WebOSDevice extends IPSModule
         $this->RegisterPropertyBoolean("VAR_CHANNEL", false);
         $this->RegisterPropertyBoolean("VAR_SOUNDOUTPUT", false);
 
+        // Show the instance as remote control tile (HTML-SDK, tile visualization)
+        $this->RegisterPropertyBoolean("TILE_REMOTE", false);
+
         // Private properties
         $this->RegisterPropertyString("DEVICE_PATH", "/");
         $this->RegisterPropertyInteger("DEVICE_STATE", 0); // unused, kept for compatibility
@@ -126,6 +129,7 @@ class WebOSDevice extends IPSModule
         $this->setProfileAssociations('WEBOS.Remote', 1, 'Move', array_map(function ($v, $b) { return [$v, $b[1]]; }, array_keys(self::REMOTE_BUTTONS), self::REMOTE_BUTTONS));
         $this->setProfileAssociations('WEBOS.Media', 1, 'Music', array_map(function ($v, $b) { return [$v, $b[1]]; }, array_keys(self::MEDIA_CONTROLS), self::MEDIA_CONTROLS));
         $this->setProfileAssociations('WEBOS.Channel', 1, 'TV', [[0, 'Sender –'], [1, 'Sender +']]);
+        $this->setProfileAssociations('WEBOS.VolumeStep', 1, 'Speaker', [[0, 'Leiser'], [1, 'Lauter']]);
         $this->setProfileAssociations('WEBOS.SoundOutput', 1, 'Speaker', array_merge([[-1, 'Andere']], array_map(function ($v, $b) { return [$v, $b[1]]; }, array_keys(self::SOUND_OUTPUTS), self::SOUND_OUTPUTS)));
 
         // Dynamic profiles (per instance) from cached lists
@@ -136,6 +140,7 @@ class WebOSDevice extends IPSModule
         $this->maintainVar('Power',          'Power',              0, '~Switch',                  10, 'VAR_POWER',       true);
         $this->maintainVar('Volume',         'Lautstärke',         1, 'WEBOS.Volume',             20, 'VAR_VOLUME',      true);
         $this->maintainVar('Muted',          'Stumm',              0, 'WEBOS.Mute',               21, 'VAR_VOLUME',      true);
+        $this->maintainVar('VolumeStep',     'Lautstärke − / +',   1, 'WEBOS.VolumeStep',         22, 'VAR_VOLUME',      true);
         $this->maintainVar('Input',          'Eingang',            1, $this->inputProfileName(),  30, 'VAR_INPUT',       true);
         $this->maintainVar('AppName',        'Aktuelle App',       3, '',                         40, 'VAR_APP',         false);
         $this->maintainVar('AppLaunch',      'App starten',        1, $this->appProfileName(),    41, 'VAR_APPLAUNCH',   true);
@@ -150,6 +155,20 @@ class WebOSDevice extends IPSModule
         $active = trim($this->ReadPropertyString('DEVICE_IP')) != '';
         $this->SetTimerInterval('Update', ($active && $interval > 0) ? $interval * 1000 : 0);
         $this->SetStatus($active ? 102 : 104);
+
+        // Remote control tile for the tile visualization (HTML-SDK)
+        $this->SetVisualizationType($this->ReadPropertyBoolean('TILE_REMOTE') ? 1 : 0);
+        if ($this->ReadPropertyBoolean('TILE_REMOTE') && IPS_GetKernelRunlevel() == KR_READY) {
+            $this->setTileState([]); // selection of apps/inputs may have changed
+        }
+    }
+
+    // HTML-SDK: returns the remote control tile
+    public function GetVisualizationTile()
+    {
+        $html = file_get_contents(__DIR__ . '/module.html');
+        $state = json_encode($this->tileState(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+        return $html . '<script>handleMessage(' . json_encode($state, JSON_HEX_TAG) . ');</script>';
     }
 
     public function Test() {
@@ -185,36 +204,42 @@ class WebOSDevice extends IPSModule
             $on = in_array($state, ['Active', 'Screen Off', 'Screen Saver']) && !isset($p['processing']);
         }
         $this->setVar('Power', $on);
+        $tile = $this->ReadPropertyBoolean('TILE_REMOTE');
 
         if (!$on) {
             $this->setVar('AppName', '');
             $this->setVar('ChannelName', '');
             $this->disconnect();
+            $this->setTileState(['power' => false, 'app' => '', 'appId' => '', 'input' => -1]);
             return true;
         }
+        $tileState = ['power' => true];
 
         // Load input/app lists once
         $changed = false;
         if ($this->ReadPropertyBoolean('VAR_INPUT') && count($this->getInputs()) == 0) {
             $changed = $this->refreshInputs() || $changed;
         }
-        if (($this->ReadPropertyBoolean('VAR_APP') || $this->ReadPropertyBoolean('VAR_APPLAUNCH')) && count($this->getApps()) == 0) {
+        if (($this->ReadPropertyBoolean('VAR_APP') || $this->ReadPropertyBoolean('VAR_APPLAUNCH') || $tile) && count($this->getApps()) == 0) {
             $changed = $this->refreshApps() || $changed;
         }
         if ($changed) {
             IPS_ApplyChanges($this->InstanceID);
         }
 
-        if ($this->ReadPropertyBoolean('VAR_VOLUME')) {
+        if ($this->ReadPropertyBoolean('VAR_VOLUME') || $tile) {
             $p = $this->ssap('ssap://audio/getVolume');
             if (is_array($p)) {
                 [$volume, $muted] = $this->parseVolume($p);
                 if ($volume !== null) $this->setVar('Volume', $volume);
                 if ($muted !== null) $this->setVar('Muted', $muted);
+                // Sound via ARC/eARC/optical/Bluetooth: the TV does not know the real volume
+                $output = $p['volumeStatus']['soundOutput'] ?? ($p['soundOutput'] ?? 'tv_speaker');
+                $tileState += ['volume' => $volume, 'muted' => $muted, 'external' => ($output != 'tv_speaker')];
             }
         }
 
-        $needApp = $this->ReadPropertyBoolean('VAR_APP') || $this->ReadPropertyBoolean('VAR_INPUT') || $this->ReadPropertyBoolean('VAR_CHANNEL');
+        $needApp = $this->ReadPropertyBoolean('VAR_APP') || $this->ReadPropertyBoolean('VAR_INPUT') || $this->ReadPropertyBoolean('VAR_CHANNEL') || $tile;
         $appId = '';
         if ($needApp) {
             $p = $this->ssap('ssap://com.webos.applicationManager/getForegroundAppInfo');
@@ -235,6 +260,7 @@ class WebOSDevice extends IPSModule
             }
             $this->setVar('AppName', $name);
             $this->setVar('Input', $inputIndex);
+            $tileState += ['app' => $name, 'appId' => $appId, 'input' => $inputIndex];
         }
 
         if ($this->ReadPropertyBoolean('VAR_CHANNEL')) {
@@ -260,6 +286,7 @@ class WebOSDevice extends IPSModule
         }
 
         $this->disconnect();
+        $this->setTileState($tileState);
         return true;
     }
 
@@ -276,6 +303,7 @@ class WebOSDevice extends IPSModule
             IPS_ApplyChanges($this->InstanceID);
         }
         $this->ReloadForm();
+        $this->setTileState([]);
         return true;
     }
 
@@ -430,6 +458,7 @@ class WebOSDevice extends IPSModule
             case 'Power':
                 $response = $Value ? $this->RequestAction('PowerOn', '') : $this->RequestAction('PowerOff', '');
                 $this->setVar('Power', (bool)$Value);
+                $this->setTileState(['power' => (bool)$Value]);
                 break;
             case 'Volume':
                 $response = $this->ssap('ssap://audio/setVolume', ['volume' => max(0, min(100, (int)$Value))]);
@@ -438,12 +467,14 @@ class WebOSDevice extends IPSModule
             case 'Muted':
                 $response = $this->ssap('ssap://audio/setMute', ['mute' => (bool)$Value]);
                 $this->setVar('Muted', (bool)$Value);
+                $this->setTileState(['muted' => (bool)$Value]);
                 break;
             case 'Input':
                 $inputs = $this->getInputs();
                 if (isset($inputs[$Value])) {
                     $response = $this->ssap('ssap://tv/switchInput', ['inputId' => $inputs[$Value]['id']]);
                     $this->setVar('Input', (int)$Value);
+                    $this->setTileState(['input' => (int)$Value, 'app' => $inputs[$Value]['label'], 'appId' => $inputs[$Value]['appId'] ?? '']);
                 }
                 break;
             case 'AppLaunch':
@@ -451,6 +482,7 @@ class WebOSDevice extends IPSModule
                 if (isset($apps[$Value])) {
                     $response = $this->ssap('ssap://system.launcher/launch', ['id' => $apps[$Value]['id']]);
                     $this->setVar('AppLaunch', (int)$Value);
+                    $this->setTileState(['app' => $apps[$Value]['title'], 'appId' => $apps[$Value]['id'], 'input' => -1]);
                 }
                 break;
             case 'RemoteKey':
@@ -461,6 +493,14 @@ class WebOSDevice extends IPSModule
             case 'MediaControl':
                 if (isset(self::MEDIA_CONTROLS[$Value])) {
                     $response = $this->ssap('ssap://media.controls/' . self::MEDIA_CONTROLS[$Value][0]);
+                }
+                break;
+            case 'VolumeStep':
+                $response = $this->RequestAction($Value ? 'VolumeUp' : 'VolumeDown', '');
+                break;
+            case 'TileButton':
+                if (preg_match('/^[A-Z0-9_]{1,20}$/', (string)$Value)) {
+                    $response = $this->sendPointerButton((string)$Value);
                 }
                 break;
             case 'ChannelControl':
@@ -669,6 +709,37 @@ class WebOSDevice extends IPSModule
     }
 
     // PRIVATE FUNCTIONS
+
+    // ---------- Remote control tile (HTML-SDK) ----------
+
+    private function tileState()
+    {
+        $state = json_decode($this->GetBuffer('TileState'), true);
+        if (!is_array($state)) {
+            $state = ['power' => false, 'muted' => false, 'volume' => null, 'external' => false, 'app' => '', 'appId' => '', 'input' => -1];
+        }
+        $state['inputs'] = [];
+        foreach ($this->getInputs() as $i => $input) {
+            if (!empty($input['show'])) $state['inputs'][] = [$i, $input['label']];
+        }
+        $state['apps'] = [];
+        foreach ($this->getApps() as $i => $app) {
+            if (!empty($app['show'])) $state['apps'][] = [$i, $app['title'], $app['id']];
+        }
+        return $state;
+    }
+
+    // Merges changes into the tile state and sends it to open tiles
+    private function setTileState($Changes)
+    {
+        $state = json_decode($this->GetBuffer('TileState'), true);
+        if (!is_array($state)) $state = [];
+        $state = array_merge($state, $Changes);
+        $this->SetBuffer('TileState', json_encode($state));
+        if ($this->ReadPropertyBoolean('TILE_REMOTE')) {
+            $this->UpdateVisualizationValue(json_encode($this->tileState(), JSON_UNESCAPED_UNICODE));
+        }
+    }
 
     // ---------- Variables & profiles ----------
 

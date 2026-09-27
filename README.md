@@ -54,6 +54,11 @@ Folgende Methoden werden bereitgestellt:
 - `WEBOS_FastForward`: Spult die Wiedergabe von Medieninhalten auf dem Gerät vorwärts.
 - `WEBOS_DisplayMessage`: Zeigt eine benutzerdefinierte Nachricht auf dem Bildschirm des Geräts an.
 
+Hinweis zu webOS 26:
+- Ab webOS 26 lehnen LG-Geräte die bisher verwendete signierte Registrierung ab ("403 Pairing rejected: blacklisted certificate detected").
+- Das Modul erkennt diesen Fehler automatisch und registriert sich erneut ohne Signatur. Am TV erscheint dann die normale Kopplungsabfrage.
+- Ohne Signatur vergibt der TV einige geschützte Rechte nicht mehr (z.B. WRITE_SETTINGS); die Funktionen dieses Moduls sind davon nicht betroffen.
+
 Installation:
 1. Modul importieren
 2. Erstellen Sie in IP-Symcon eine neue Instanz des Modultyps "WebOSDevice".

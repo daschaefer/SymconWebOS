@@ -79,6 +79,77 @@
             ]
         },
         {
+            "type": "ExpansionPanel",
+            "caption": "Apps und Eingänge",
+            "items": [
+                {
+                    "type": "Label",
+                    "caption": "Die Listen werden mit \"Eingänge und Apps neu einlesen\" vom TV geladen. Häkchen = erscheint in der Auswahl der Variablen \"Eingang\" bzw. \"App starten\". Danach \"Übernehmen\" klicken."
+                },
+                {
+                    "type": "List",
+                    "name": "INPUT_LIST",
+                    "caption": "Eingänge",
+                    "rowCount": 6,
+                    "add": false,
+                    "delete": false,
+                    "columns": [
+                        {
+                            "caption": "Name",
+                            "name": "label",
+                            "width": "auto"
+                        },
+                        {
+                            "caption": "Eingangs-ID",
+                            "name": "id",
+                            "width": "160px"
+                        },
+                        {
+                            "caption": "App-ID",
+                            "name": "appId",
+                            "width": "220px"
+                        },
+                        {
+                            "caption": "In Auswahl",
+                            "name": "show",
+                            "width": "100px",
+                            "edit": {
+                                "type": "CheckBox"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "List",
+                    "name": "APP_LIST",
+                    "caption": "Apps",
+                    "rowCount": 12,
+                    "add": false,
+                    "delete": false,
+                    "columns": [
+                        {
+                            "caption": "Name",
+                            "name": "title",
+                            "width": "auto"
+                        },
+                        {
+                            "caption": "App-ID (für WEBOS_LaunchApp)",
+                            "name": "id",
+                            "width": "300px"
+                        },
+                        {
+                            "caption": "In Auswahl",
+                            "name": "show",
+                            "width": "100px",
+                            "edit": {
+                                "type": "CheckBox"
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "name": "LOGLEVEL",
             "type": "Select",
             "caption": "Log-Level:",

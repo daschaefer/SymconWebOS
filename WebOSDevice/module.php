@@ -87,9 +87,10 @@ class WebOSDevice extends IPSModule
         $this->RegisterPropertyInteger("DEVICE_STATE", 0); // unused, kept for compatibility
         $this->RegisterPropertyInteger("LOGLEVEL", 0);
 
-        // webOS 26+: TV rejects the signed LG test manifest ("blacklisted certificate").
-        // Remembers that this device needs the unsigned registration manifest.
-        $this->RegisterAttributeBoolean("UNSIGNED_PAIRING", false);
+        // Registration uses the unsigned manifest first (required for webOS 26+, where the signed LG test
+        // manifest is blacklisted or only gets the basic permissions). If a TV refuses the unsigned manifest,
+        // the module falls back to the signed one and remembers that here.
+        $this->RegisterAttributeBoolean("SIGNED_PAIRING", false);
 
         // Lists read from the TV (JSON rows: id, title/label, appId, show) - shown and editable in the form
         $this->RegisterPropertyString("INPUT_LIST", "[]");
@@ -1052,9 +1053,10 @@ class WebOSDevice extends IPSModule
         }
 
         $key = $this->ReadPropertyString("DEVICE_CODE");
-        $unsigned = $this->ReadAttributeBoolean("UNSIGNED_PAIRING");
+        $unsigned = !$this->ReadAttributeBoolean("SIGNED_PAIRING");
+        $retried = false;
         $handshake = $unsigned ? $this->buildUnsignedHandshake($key) : $this->buildSignedHandshake($key);
-        $this->Log("Sending LG handshake\n$handshake");
+        $this->Log("Sending LG handshake (" . ($unsigned ? "unsigned" : "signed") . ")\n$handshake");
         $this->sendFrame($this->sock, $handshake);
 
         $deadline = microtime(true) + 8;
@@ -1088,21 +1090,27 @@ class WebOSDevice extends IPSModule
 
             if ($type == 'error') {
                 $error = $res['error'] ?? '';
-                // webOS 26+ rejects the signed manifest with "403 ... blacklisted certificate detected".
-                // Reconnect and register again with the unsigned manifest (same approach as lgtv2 2.0.2 / aiowebostv 0.9.2).
-                if (!$unsigned && stripos($error, 'blacklisted certificate') !== false) {
-                    $this->Log("Signed manifest rejected by TV (webOS 26+), retrying with unsigned manifest");
-                    $this->WriteAttributeBoolean("UNSIGNED_PAIRING", true);
-                    $unsigned = true;
+                $this->Log("Registration error: $error");
+                // Pairing declined on the TV -> no retry
+                if (stripos($error, 'cancel') !== false || stripos($error, 'denied') !== false) {
+                    $this->disconnect();
+                    return false;
+                }
+                // Try the other manifest once:
+                // - signed rejected ("blacklisted certificate", webOS 26+) -> unsigned
+                // - unsigned rejected (older firmware) -> signed
+                if (!$retried) {
+                    $retried = true;
+                    $unsigned = !$unsigned;
+                    $this->WriteAttributeBoolean("SIGNED_PAIRING", !$unsigned);
                     $this->disconnect();
                     if (!$this->Connect($connectTimeout)) return false;
-                    $handshake = $this->buildUnsignedHandshake($key);
-                    $this->Log("Sending LG handshake (unsigned)\n$handshake");
+                    $handshake = $unsigned ? $this->buildUnsignedHandshake($key) : $this->buildSignedHandshake($key);
+                    $this->Log("Retrying LG handshake (" . ($unsigned ? "unsigned" : "signed") . ")\n$handshake");
                     $this->sendFrame($this->sock, $handshake);
                     $deadline = microtime(true) + 8;
                     continue;
                 }
-                $this->Log("ERROR: $error");
                 $this->disconnect();
                 return false;
             }
@@ -1120,7 +1128,8 @@ class WebOSDevice extends IPSModule
 
     // Registration payload without the LG test signature (required for webOS 26+).
     // Permission list taken from lgtv2 (pairing.json) incl. CONTROL_INPUT_TEXT and
-    // CONTROL_MOUSE_AND_KEYBOARD which are needed for key/pointer input without signature.
+    // CONTROL_MOUSE_AND_KEYBOARD which are needed for key/pointer input without signature,
+    // plus READ_INSTALLED_APPS for the app list.
     // Note: without signature the TV does not grant WRITE_SETTINGS and a few other protected permissions.
     private function buildUnsignedHandshake($clientKey)
     {
@@ -1138,7 +1147,8 @@ class WebOSDevice extends IPSModule
             "READ_TV_ACR_AUTH_TOKEN", "READ_TV_CONTENT_STATE", "READ_TV_CURRENT_TIME",
             "ADD_LAUNCHER_CHANNEL", "SET_CHANNEL_SKIP", "RELEASE_CHANNEL_SKIP", "CONTROL_CHANNEL_BLOCK",
             "DELETE_SELECT_CHANNEL", "CONTROL_CHANNEL_GROUP", "SCAN_TV_CHANNELS", "CONTROL_TV_POWER",
-            "CONTROL_WOL", "CONTROL_INPUT_TEXT", "CONTROL_MOUSE_AND_KEYBOARD"
+            "CONTROL_WOL", "CONTROL_INPUT_TEXT", "CONTROL_MOUSE_AND_KEYBOARD",
+            "READ_INSTALLED_APPS", "WRITE_NOTIFICATION_ALERT" // app list + alerts (as in ColorControl / LGTV Companion V3)
         ];
 
         $payload = [

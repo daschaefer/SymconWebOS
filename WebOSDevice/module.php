@@ -99,9 +99,12 @@ class WebOSDevice extends IPSModule
         // the module falls back to the signed one and remembers that here.
         $this->RegisterAttributeBoolean("SIGNED_PAIRING", false);
 
-        // Lists read from the TV (JSON rows: id, title/label, appId, show) - shown and editable in the form
+        // Lists read from the TV. The data is kept in attributes; the form lists (properties)
+        // show the same rows and deliver the "show" check boxes (Symcon only stores the editable column).
         $this->RegisterPropertyString("INPUT_LIST", "[]");
         $this->RegisterPropertyString("APP_LIST", "[]");
+        $this->RegisterAttributeString("INPUT_DATA", "[]");
+        $this->RegisterAttributeString("APP_DATA", "[]");
 
         $this->RegisterTimer("Update", 0, 'WEBOS_Update($_IPS[\'TARGET\']);');
     }
@@ -746,7 +749,7 @@ class WebOSDevice extends IPSModule
         }
         $state['apps'] = [];
         foreach ($this->getApps() as $i => $app) {
-            if (!empty($app['show'])) $state['apps'][] = [$i, $app['title'], $app['id']];
+            if (!empty($app['show'])) $state['apps'][] = [$i, $app['title'], ($app['id'] ?? '')];
         }
         return $state;
     }
@@ -883,7 +886,8 @@ class WebOSDevice extends IPSModule
         }
         $wanted = [];
         foreach ($Associations as $a) {
-            $wanted[(string)(float)$a[0]] = $a[1];
+            $caption = trim((string)$a[1]);
+            $wanted[(string)(float)$a[0]] = $caption === '' ? (string)$a[0] : $caption;
         }
         if ($current == $wanted) {
             return;
@@ -901,7 +905,8 @@ class WebOSDevice extends IPSModule
             IPS_SetVariableProfileValues($Name, $Associations[0][0], $Associations[count($Associations) - 1][0], 0);
         }
         foreach ($Associations as $a) {
-            IPS_SetVariableProfileAssociation($Name, $a[0], $a[1], '', -1);
+            $caption = trim((string)$a[1]);
+            IPS_SetVariableProfileAssociation($Name, $a[0], $caption === '' ? (string)$a[0] : $caption, '', -1); // empty name would delete
         }
     }
 
@@ -976,14 +981,49 @@ class WebOSDevice extends IPSModule
 
     private function getInputs()
     {
-        $list = json_decode($this->ReadPropertyString('INPUT_LIST'), true);
-        return is_array($list) ? array_values($list) : [];
+        return $this->mergeList('INPUT_DATA', 'INPUT_LIST', 'label');
     }
 
     private function getApps()
     {
-        $list = json_decode($this->ReadPropertyString('APP_LIST'), true);
-        return is_array($list) ? array_values($list) : [];
+        return $this->mergeList('APP_DATA', 'APP_LIST', 'title');
+    }
+
+    // Combines the stored data (attribute) with the check boxes from the form (property, same row order)
+    private function mergeList($Attribute, $Property, $NameKey)
+    {
+        $data = json_decode($this->ReadAttributeString($Attribute), true);
+        $rows = json_decode($this->ReadPropertyString($Property), true);
+        if (!is_array($rows)) $rows = [];
+        $rows = array_values($rows);
+        if (!is_array($data) || count($data) == 0) {
+            $data = $rows; // fallback: data only in the property (older version)
+        }
+        $data = array_values($data);
+
+        // show flags by id (if the form delivered ids) or by position
+        $byId = [];
+        foreach ($rows as $row) {
+            if (is_array($row) && isset($row['id'], $row['show'])) $byId[$row['id']] = (bool)$row['show'];
+        }
+        $list = [];
+        foreach ($data as $i => $item) {
+            if (!is_array($item)) continue;
+            $id = $item['id'] ?? '';
+            if ($id !== '' && isset($byId[$id])) {
+                $show = $byId[$id];
+            } elseif (isset($rows[$i]) && is_array($rows[$i]) && array_key_exists('show', $rows[$i])) {
+                $show = (bool)$rows[$i]['show'];
+            } else {
+                $show = (bool)($item['show'] ?? true);
+            }
+            $name = trim((string)($item[$NameKey] ?? ''));
+            if ($name === '') $name = $id !== '' ? $id : ('#' . ($i + 1));
+            $item[$NameKey] = $name;
+            $item['show'] = $show;
+            $list[] = $item;
+        }
+        return $list;
     }
 
     // id => show flag of an existing list (keeps the user's selection when the list is read again)
@@ -996,10 +1036,13 @@ class WebOSDevice extends IPSModule
         return $flags;
     }
 
-    // Stores a list in its property. Returns true if it changed (caller applies the changes).
+    // Stores a list (data in the attribute, complete rows in the form property).
+    // Returns true if the property changed (caller applies the changes).
     private function saveList($Property, $List)
     {
+        $attribute = ($Property == 'INPUT_LIST') ? 'INPUT_DATA' : 'APP_DATA';
         $json = json_encode($List, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $this->WriteAttributeString($attribute, $json);
         if ($json == $this->ReadPropertyString($Property)) {
             return false;
         }

@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+    :root {
+        --body: #1c1e22;
+        --body-hi: #2a2d33;
+        --key: #2f3239;
+        --key-hi: #3a3e46;
+        --key-press: #4a4f59;
+        --text: #e9ebef;
+        --muted: #8b9099;
+        --accent: #d4003c;   /* LG red */
+        --on: #3ddc84;
+        --ring: #25282e;
+    }
+    html, body {
+        margin: 0; padding: 0; width: 100%; height: 100%;
+        background: transparent; overflow: hidden;
+        font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        -webkit-user-select: none; user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
+        touch-action: manipulation; /* no double-tap zoom on phones */
+    }
+    #stage { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+    #remote {
+        width: 250px; box-sizing: border-box; padding: 14px 14px 16px;
+        border-radius: 34px;
+        background: linear-gradient(160deg, var(--body-hi), var(--body) 55%);
+        box-shadow: 0 10px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
+        color: var(--text);
+        display: grid; gap: 10px;
+        grid-template-columns: 1fr;
+        grid-template-areas: "head" "top" "nav" "sub" "rock" "media" "color" "apps";
+        transform-origin: center center;
+    }
+    #remote.wide {
+        width: 540px; grid-template-columns: 220px 1fr; column-gap: 18px;
+        grid-template-areas: "head head" "nav top" "nav rock" "sub media" "color apps";
+        border-radius: 30px;
+    }
+    .head { grid-area: head; display: flex; align-items: center; gap: 10px; min-height: 30px; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: #555; flex: none; transition: background .2s, box-shadow .2s; }
+    .dot.on { background: var(--on); box-shadow: 0 0 8px var(--on); }
+    .title { flex: 1; min-width: 0; }
+    .title .app { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .title .sub { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    button {
+        font: inherit; color: var(--text); border: 0; cursor: pointer; outline: none;
+        background: var(--key); border-radius: 12px;
+        box-shadow: 0 2px 0 rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
+        display: inline-flex; align-items: center; justify-content: center;
+        transition: background .12s, transform .06s;
+        padding: 0;
+    }
+    button:hover { background: var(--key-hi); }
+    button:active, button.pressed { background: var(--key-press); transform: translateY(1px); box-shadow: 0 1px 0 rgba(0,0,0,.35); }
+    button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+    .power { width: 38px; height: 38px; border-radius: 50%; background: #3a2328; color: #ff5a7a; flex: none; }
+    .power.on { background: var(--accent); color: #fff; box-shadow: 0 0 14px rgba(212,0,60,.55); }
+
+    .top { grid-area: top; display: grid; grid-template-columns: 1fr 40px 40px; gap: 8px; }
+    .top button { height: 36px; }
+    select {
+        height: 36px; border-radius: 12px; border: 0; padding: 0 10px; min-width: 0;
+        background: var(--key); color: var(--text); font: inherit; font-size: 13px; outline: none;
+        box-shadow: 0 2px 0 rgba(0,0,0,.35);
+        -webkit-appearance: none; appearance: none;
+        background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+        background-position: calc(100% - 15px) 16px, calc(100% - 10px) 16px;
+        background-size: 5px 5px; background-repeat: no-repeat;
+    }
+
+    .nav { grid-area: nav; display: flex; justify-content: center; align-items: center; }
+    .dpad {
+        position: relative; width: 190px; height: 190px; border-radius: 50%;
+        background: radial-gradient(circle at 50% 40%, #33363d, var(--ring) 70%);
+        box-shadow: inset 0 2px 6px rgba(0,0,0,.6), 0 1px 0 rgba(255,255,255,.05);
+    }
+    .dpad button { position: absolute; background: transparent; box-shadow: none; border-radius: 14px; color: var(--muted); }
+    .dpad button:hover { color: var(--text); background: rgba(255,255,255,.05); }
+    .dpad button:active, .dpad button.pressed { background: rgba(255,255,255,.12); color: #fff; }
+    .dpad .up    { top: 4%;    left: 34%; width: 32%; height: 25%; }
+    .dpad .down  { bottom: 4%; left: 34%; width: 32%; height: 25%; }
+    .dpad .left  { left: 4%;   top: 34%;  width: 25%; height: 32%; }
+    .dpad .right { right: 4%;  top: 34%;  width: 25%; height: 32%; }
+    .dpad .ok {
+        top: 29%; left: 29%; width: 42%; height: 42%; border-radius: 50%;
+        background: linear-gradient(160deg, #3d4149, #2c2f35); color: var(--text); font-weight: 700; font-size: 15px; letter-spacing: .5px;
+        box-shadow: 0 3px 8px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08);
+    }
+    .dpad .ok:active, .dpad .ok.pressed { background: #4a4f59; }
+
+    .sub { grid-area: sub; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .sub button { height: 34px; font-size: 12px; gap: 6px; }
+
+    .rock { grid-area: rock; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; align-items: center; }
+    .rocker { display: flex; flex-direction: column; border-radius: 22px; overflow: hidden; background: var(--key); box-shadow: 0 2px 0 rgba(0,0,0,.35); }
+    .rocker button { height: 42px; border-radius: 0; background: transparent; box-shadow: none; font-size: 20px; font-weight: 300; }
+    .rocker button:active, .rocker button.pressed { background: var(--key-press); }
+    .rocker .lbl { text-align: center; font-size: 10px; letter-spacing: 1px; color: var(--muted); padding: 2px 0; }
+    .mid { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .mute { width: 48px; height: 48px; border-radius: 50%; }
+    .mute.active { background: #5a4a1a; color: #ffcf4a; }
+    .vol { font-size: 11px; color: var(--muted); min-height: 13px; }
+
+    .media { grid-area: media; display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+    .media button { height: 34px; border-radius: 10px; }
+    .media svg { width: 16px; height: 16px; fill: currentColor; stroke: none; }
+
+    .color { grid-area: color; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .color button { height: 14px; border-radius: 7px; }
+    .c-red { background: #d33b3b; } .c-green { background: #3fae5a; } .c-yellow { background: #e1c542; } .c-blue { background: #3a74d6; }
+    .color button:hover { filter: brightness(1.15); }
+
+    .apps { grid-area: apps; display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
+    .apps::-webkit-scrollbar { display: none; }
+    .apps button { flex: none; height: 30px; padding: 0 12px; border-radius: 15px; font-size: 12px; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .apps button.current { background: #3b2a31; color: #ff8aa5; }
+    .apps:empty { display: none; }
+
+    /* ---------- Full-area page layout ---------- */
+    html.page, body.page { background: var(--body); overflow: hidden; }
+    body.page #stage { display: block; position: relative; }
+    body.page #remote {
+        position: absolute; left: 0; top: 0; transform-origin: 0 0; box-sizing: border-box;
+        border-radius: 0; box-shadow: none; background: var(--body);
+        padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+        gap: 12px; align-content: stretch;
+        grid-template-rows: auto auto 1fr auto auto auto auto auto;
+    }
+    body.page #remote.wide { grid-template-columns: 1fr 1.25fr; grid-template-rows: auto 1fr auto auto auto; column-gap: 24px; }
+    body.page .nav { min-height: 0; overflow: hidden; }
+    body.page .dpad { width: 220px; height: 220px; flex: none; } /* real size is set by fit() */
+    body.page .dpad .ok { font-size: 20px; }
+    body.page .dpad svg { width: 26px; height: 26px; }
+    body.page .title .app { font-size: 18px; }
+    body.page .title .sub { font-size: 13px; }
+    body.page .power { width: 46px; height: 46px; }
+    body.page .top { grid-template-columns: 1fr 48px 48px; gap: 10px; }
+    body.page .top button, body.page select { height: 44px; font-size: 15px; }
+    body.page select { background-position: calc(100% - 17px) 20px, calc(100% - 12px) 20px; }
+    body.page .sub button { height: 42px; font-size: 14px; }
+    body.page .rocker button { height: 50px; font-size: 24px; }
+    body.page .mute { width: 58px; height: 58px; }
+    body.page .vol { font-size: 13px; }
+    body.page .media button { height: 42px; }
+    body.page .media svg { width: 20px; height: 20px; }
+    body.page .color button { height: 16px; }
+    body.page .apps button { height: 38px; font-size: 14px; padding: 0 16px; border-radius: 19px; }
+    /* short screens (phone in landscape) */
+    @media (max-height: 520px) {
+        body.page #remote { gap: 8px; padding-top: 8px; padding-bottom: 8px; }
+        body.page .power { width: 38px; height: 38px; }
+        body.page .top button, body.page select { height: 36px; font-size: 13px; }
+        body.page .sub button, body.page .media button { height: 34px; }
+        body.page .rocker button { height: 38px; font-size: 20px; }
+        body.page .mute { width: 46px; height: 46px; }
+        body.page .apps button { height: 32px; font-size: 13px; }
+        body.page .title .app { font-size: 15px; }
+    }
+
+    .off .dpad, .off .rock, .off .media, .off .color, .off .apps, .off .sub, .off .top select, .off .top button { opacity: .35; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="stage">
+<div id="remote" class="off">
+    <div class="head">
+        <span class="dot" id="dot"></span>
+        <div class="title"><div class="app" id="app">LG TV</div><div class="sub" id="sub">aus</div></div>
+        <button class="power" id="power" title="Ein/Aus">
+            <svg viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg>
+        </button>
+    </div>
+
+    <div class="top">
+        <select id="input" title="Eingang"></select>
+        <button data-key="HOME" title="Home"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg></button>
+        <button data-key="MENU" title="Einstellungen"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+    </div>
+
+    <div class="nav">
+        <div class="dpad">
+            <button class="up" data-key="UP" title="Hoch"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
+            <button class="left" data-key="LEFT" title="Links"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+            <button class="ok" data-key="ENTER" title="OK">OK</button>
+            <button class="right" data-key="RIGHT" title="Rechts"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+            <button class="down" data-key="DOWN" title="Runter"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+        </div>
+    </div>
+
+    <div class="sub">
+        <button data-key="BACK" title="Zurück"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+        <button data-key="INFO" title="Info"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><path d="M12 7.5v.01"/></svg></button>
+        <button data-key="EXIT" title="Exit">EXIT</button>
+    </div>
+
+    <div class="rock">
+        <div class="rocker">
+            <button data-vol="1" title="Lauter">+</button>
+            <div class="lbl">VOL</div>
+            <button data-vol="0" title="Leiser">−</button>
+        </div>
+        <div class="mid">
+            <button class="mute" id="mute" title="Stumm"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M16 9l5 6"/><path d="M21 9l-5 6"/></svg></button>
+            <div class="vol" id="vol"></div>
+        </div>
+        <div class="rocker">
+            <button data-ch="1" title="Sender +">+</button>
+            <div class="lbl">CH</div>
+            <button data-ch="0" title="Sender −">−</button>
+        </div>
+    </div>
+
+    <div class="media">
+        <button data-media="3" title="Zurückspulen"><svg viewBox="0 0 24 24"><path d="M11 6v12l-8-6zM21 6v12l-8-6z"/></svg></button>
+        <button data-media="0" title="Play"><svg viewBox="0 0 24 24"><path d="M7 5v14l12-7z"/></svg></button>
+        <button data-media="1" title="Pause"><svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg></button>
+        <button data-media="2" title="Stop"><svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg></button>
+        <button data-media="4" title="Vorspulen"><svg viewBox="0 0 24 24"><path d="M3 6v12l8-6zM13 6v12l8-6z"/></svg></button>
+    </div>
+
+    <div class="color">
+        <button class="c-red" data-key="RED" title="Rot"></button>
+        <button class="c-green" data-key="GREEN" title="Grün"></button>
+        <button class="c-yellow" data-key="YELLOW" title="Gelb"></button>
+        <button class="c-blue" data-key="BLUE" title="Blau"></button>
+    </div>
+
+    <div class="apps" id="apps"></div>
+</div>
+</div>
+
+<script>
+    var state = { power: false, muted: false, volume: null, external: false, app: '', appId: '', input: -1, inputs: [], apps: [] };
+    var remote = document.getElementById('remote');
+    if (window.REMOTE_STYLE === 'page') { document.body.classList.add('page'); document.documentElement.classList.add('page'); }
+
+    function send(ident, value) {
+        if (navigator.vibrate) { try { navigator.vibrate(8); } catch (e) {} }
+        requestAction(ident, value);
+    }
+
+    // Buttons
+    document.querySelectorAll('[data-key]').forEach(function (b) {
+        b.addEventListener('click', function () { send('TileButton', b.getAttribute('data-key')); });
+    });
+    document.querySelectorAll('[data-vol]').forEach(function (b) {
+        b.addEventListener('click', function () { send('VolumeStep', parseInt(b.getAttribute('data-vol'), 10)); });
+    });
+    document.querySelectorAll('[data-ch]').forEach(function (b) {
+        b.addEventListener('click', function () { send('ChannelControl', parseInt(b.getAttribute('data-ch'), 10)); });
+    });
+    document.querySelectorAll('[data-media]').forEach(function (b) {
+        b.addEventListener('click', function () { send('MediaControl', parseInt(b.getAttribute('data-media'), 10)); });
+    });
+    document.getElementById('power').addEventListener('click', function () {
+        state.power = !state.power; render();
+        send('Power', state.power);
+    });
+    document.getElementById('mute').addEventListener('click', function () {
+        state.muted = !state.muted; render();
+        send('Muted', state.muted);
+    });
+    document.getElementById('input').addEventListener('change', function (e) {
+        var v = parseInt(e.target.value, 10);
+        if (v >= 0) send('Input', v);
+    });
+
+    function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+
+    function render() {
+        remote.classList.toggle('off', !state.power);
+        document.getElementById('dot').classList.toggle('on', state.power);
+        document.getElementById('power').classList.toggle('on', state.power);
+        document.getElementById('mute').classList.toggle('active', !!state.muted);
+
+        var inputName = '';
+        state.inputs.forEach(function (i) { if (i[0] === state.input) inputName = i[1]; });
+        document.getElementById('app').textContent = state.power ? (state.app || inputName || 'LG TV') : 'LG TV';
+        document.getElementById('sub').textContent = state.power ? (inputName && inputName !== state.app ? inputName : 'eingeschaltet') : 'aus';
+
+        var vol = '';
+        if (state.power) {
+            if (state.muted) vol = 'stumm';
+            else if (!state.external && state.volume !== null) vol = state.volume + ' %';
+            else if (state.external) vol = 'Soundbar';
+        }
+        document.getElementById('vol').textContent = vol;
+
+        var sel = document.getElementById('input');
+        sel.innerHTML = '';
+        var ph = el('option', '', 'Eingang'); ph.value = '-1'; sel.appendChild(ph);
+        state.inputs.forEach(function (i) { var o = el('option', '', i[1]); o.value = i[0]; sel.appendChild(o); });
+        sel.value = String(state.input >= 0 ? state.input : -1);
+        if (sel.value === '') sel.value = '-1';
+
+        var apps = document.getElementById('apps');
+        apps.innerHTML = '';
+        state.apps.forEach(function (a) {
+            var b = el('button', a[2] === state.appId ? 'current' : '', a[1]);
+            b.title = a[1];
+            b.addEventListener('click', function () { send('AppLaunch', a[0]); });
+            apps.appendChild(b);
+        });
+        fit();
+    }
+
+    // Symcon calls this with the JSON string from UpdateVisualizationValue()
+    function handleMessage(data) {
+        try {
+            var d = typeof data === 'string' ? JSON.parse(data) : data;
+            for (var k in d) { if (d[k] !== null && d[k] !== undefined) state[k] = d[k]; }
+            render();
+        } catch (e) { }
+    }
+
+    // Scale the remote to the tile size; wide tiles get a two-column layout
+    // Fills the available area: scales to the height and stretches the width (buttons get wider)
+    var fitting = false;
+    function fit() {
+        if (fitting) return;
+        fitting = true;
+        autoHeight();
+        var W = window.innerWidth, H = window.innerHeight;
+        var wide = W / Math.max(H, 1) > 1.25;
+        remote.classList.toggle('wide', wide);
+        if (document.body.classList.contains('page')) {
+            // Work on a phone-sized layout (390 px wide, 740 px in landscape) and scale it to the real area.
+            // The iOS WebFront renders pages ~900 px wide and shrinks them - without this everything would be tiny.
+            var z = Math.max(0.6, Math.min(3, W / (wide ? 740 : 390)));
+            remote.style.transform = 'scale(' + z + ')';
+            remote.style.width = (W / z) + 'px';
+            remote.style.height = (H / z) + 'px';
+            // d-pad as large as the free row allows
+            var nav = remote.querySelector('.nav'), dp = remote.querySelector('.dpad');
+            dp.style.width = dp.style.height = '0px';
+            var size = Math.max(140, Math.min(nav.clientWidth - 8, nav.clientHeight - 8, 380));
+            dp.style.width = dp.style.height = size + 'px';
+            fitting = false;
+            return;
+        }
+        var base = wide ? 540 : 250, maxW = wide ? 760 : 380;
+        remote.style.transform = 'none';
+        remote.style.width = base + 'px';
+        var h = remote.offsetHeight;
+        var s = Math.max(0.2, Math.min((W - 4) / base, (H - 4) / h, 2.4));
+        var w = Math.max(base, Math.min(maxW, (W - 4) / s));   // use the free width
+        remote.style.width = w + 'px';
+        h = remote.offsetHeight;
+        s = Math.max(0.2, Math.min((W - 4) / w, (H - 4) / h, 2.4));
+        remote.style.transform = 'scale(' + s + ')';
+        fitting = false;
+    }
+
+    // Classic WebFront: the HTMLBox iframe (data-autoheight) is sized to the free screen height
+    function autoHeight() {
+        try {
+            var f = window.frameElement;
+            if (!f || !f.hasAttribute('data-autoheight')) return;
+            var top = f.getBoundingClientRect().top;
+            var avail = Math.floor(window.parent.innerHeight - Math.max(0, top) - 6);
+            var hgt = Math.max(300, avail);
+            if (Math.abs(f.offsetHeight - hgt) > 2) {
+                f.style.aspectRatio = 'auto';
+                f.style.maxHeight = 'none';
+                f.style.height = hgt + 'px';
+            }
+        } catch (e) { /* other origin -> keep size */ }
+    }
+    window.addEventListener('resize', fit);
+    render();
+</script>
+</body>
+</html>

@@ -1,19 +1,309 @@
 {
-	"elements":
-	[
-        { "name": "DEVICE_IP",      "type": "ValidationTextBox",    "caption": "IP-Adresse:" },
-        { "name": "DEVICE_MAC",     "type": "ValidationTextBox",    "caption": "MAC-Adresse (z.B. AA:BB:CC:DD:EE:FF):" },
-        { "name": "DEVICE_PORT",    "type": "NumberSpinner",        "caption": "Port:" },
-        { "name": "LOGLEVEL",       "type": "Select",               "caption": "Log-Level:",
+    "elements": [
+        {
+            "name": "DEVICE_IP",
+            "type": "ValidationTextBox",
+            "caption": "IP-Adresse:"
+        },
+        {
+            "name": "DEVICE_MAC",
+            "type": "ValidationTextBox",
+            "caption": "MAC-Adresse (z.B. AA:BB:CC:DD:EE:FF):"
+        },
+        {
+            "name": "WOL_BROADCAST",
+            "type": "ValidationTextBox",
+            "caption": "Broadcast-Adresse für Einschalten (leer = automatisch, z.B. 192.168.2.255)"
+        },
+        {
+            "name": "DEVICE_PORT",
+            "type": "NumberSpinner",
+            "caption": "Port:"
+        },
+        {
+            "name": "UPDATE_INTERVAL",
+            "type": "NumberSpinner",
+            "caption": "Status abfragen alle",
+            "suffix": "Sekunden (0 = aus)",
+            "minimum": 0
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Variablen",
+            "expanded": true,
+            "items": [
+                {
+                    "type": "Label",
+                    "caption": "Auswählen, welche Variablen unter der Instanz angelegt werden:"
+                },
+                {
+                    "name": "VAR_POWER",
+                    "type": "CheckBox",
+                    "caption": "Power (Ein/Aus)"
+                },
+                {
+                    "name": "VAR_VOLUME",
+                    "type": "CheckBox",
+                    "caption": "Lautstärke und Stummschaltung"
+                },
+                {
+                    "name": "VAR_INPUT",
+                    "type": "CheckBox",
+                    "caption": "Eingang (HDMI usw.)"
+                },
+                {
+                    "name": "VAR_APP",
+                    "type": "CheckBox",
+                    "caption": "Aktuelle App (Anzeige)"
+                },
+                {
+                    "name": "VAR_APPLAUNCH",
+                    "type": "CheckBox",
+                    "caption": "App starten (Auswahl)"
+                },
+                {
+                    "name": "VAR_REMOTE",
+                    "type": "CheckBox",
+                    "caption": "Fernbedienung (Pfeiltasten, OK, Zurück, Home, Farbtasten)"
+                },
+                {
+                    "name": "VAR_MEDIA",
+                    "type": "CheckBox",
+                    "caption": "Wiedergabe (Play, Pause, Stop, Spulen)"
+                },
+                {
+                    "name": "VAR_CHANNEL",
+                    "type": "CheckBox",
+                    "caption": "Sender (aktueller Sender, Sender +/-)"
+                },
+                {
+                    "name": "VAR_SOUNDOUTPUT",
+                    "type": "CheckBox",
+                    "caption": "Tonausgabe (TV-Lautsprecher, ARC, Optisch, Bluetooth)"
+                },
+                {
+                    "name": "VAR_NOTIFY",
+                    "type": "CheckBox",
+                    "caption": "Meldung an TV (Text eintragen = Einblendung am TV, z.B. aus Ablaufplänen)"
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Apps und Eingänge",
+            "items": [
+                {
+                    "type": "Label",
+                    "caption": "Die Listen werden mit \"Eingänge und Apps neu einlesen\" vom TV geladen. Häkchen = erscheint in der Auswahl der Variablen \"Eingang\" bzw. \"App starten\". Danach \"Übernehmen\" klicken."
+                },
+                {
+                    "type": "List",
+                    "name": "INPUT_LIST",
+                    "caption": "Eingänge",
+                    "rowCount": 6,
+                    "add": false,
+                    "delete": false,
+                    "columns": [
+                        {
+                            "caption": "Name",
+                            "name": "label",
+                            "width": "auto"
+                        },
+                        {
+                            "caption": "Eingangs-ID",
+                            "name": "id",
+                            "width": "160px"
+                        },
+                        {
+                            "caption": "App-ID",
+                            "name": "appId",
+                            "width": "220px"
+                        },
+                        {
+                            "caption": "In Auswahl",
+                            "name": "show",
+                            "width": "100px",
+                            "edit": {
+                                "type": "CheckBox"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "type": "List",
+                    "name": "APP_LIST",
+                    "caption": "Apps",
+                    "rowCount": 12,
+                    "add": false,
+                    "delete": false,
+                    "columns": [
+                        {
+                            "caption": "Name",
+                            "name": "title",
+                            "width": "auto"
+                        },
+                        {
+                            "caption": "App-ID (für WEBOS_LaunchApp)",
+                            "name": "id",
+                            "width": "300px"
+                        },
+                        {
+                            "caption": "In Auswahl",
+                            "name": "show",
+                            "width": "100px",
+                            "edit": {
+                                "type": "CheckBox"
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Fernbedienung (Visualisierung)",
+            "items": [
+                {
+                    "name": "REMOTE_STYLE",
+                    "type": "Select",
+                    "caption": "Darstellung",
+                    "options": [
+                        {
+                            "caption": "Fernbedienung (mit Gehäuse)",
+                            "value": 0
+                        },
+                        {
+                            "caption": "Vollflächig (ganze Seite, ideal fürs Handy)",
+                            "value": 1
+                        }
+                    ]
+                },
+                {
+                    "name": "TILE_REMOTE",
+                    "type": "CheckBox",
+                    "caption": "Kachel-Visualisierung: Instanz als Fernbedienung darstellen"
+                },
+                {
+                    "type": "Label",
+                    "caption": "Die Instanz in der Kachel-Visualisierung verlinken und die Kachel groß genug ziehen (hochkant oder breit)."
+                },
+                {
+                    "name": "WEBFRONT_REMOTE",
+                    "type": "CheckBox",
+                    "caption": "Altes WebFront: Variable \"Fernbedienung\" (HTMLBox) anlegen"
+                },
+                {
+                    "name": "WEBFRONT_HEIGHT",
+                    "type": "NumberSpinner",
+                    "caption": "Höhe im WebFront (0 = automatisch, passt sich Handy/Tablet an)",
+                    "suffix": "px",
+                    "minimum": 0
+                },
+                {
+                    "type": "Label",
+                    "caption": "Apps und Eingänge mit Häkchen erscheinen in beiden Varianten als Schnellwahl."
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Meldungen auf dem TV",
+            "items": [
+                {
+                    "name": "NOTIFY_ICON",
+                    "type": "SelectMedia",
+                    "caption": "Standard-Symbol für Meldungen (optional)"
+                },
+                {
+                    "type": "Label",
+                    "caption": "In Skripten: WEBOS_Notify($id, \"Text\"), WEBOS_NotifyIcon($id, \"Text\", MedienID/Datei/URL), WEBOS_Alert($id, \"Titel\", \"Text\", Sekunden)"
+                },
+                {
+                    "name": "SYMCON_URL",
+                    "type": "ValidationTextBox",
+                    "caption": "Symcon-Adresse für Bilder (leer = automatisch, z.B. http://192.168.2.10:3777)"
+                },
+                {
+                    "type": "Label",
+                    "caption": "Bild groß anzeigen: WEBOS_ShowImage($id, MedienID/Datei/URL, \"Text\", Sekunden)"
+                }
+            ]
+        },
+        {
+            "name": "LOGLEVEL",
+            "type": "Select",
+            "caption": "Log-Level:",
             "options": [
-                { "caption": "Aus", "value": 0 },
-                { "caption": "Debug", "value": 1 }
+                {
+                    "caption": "Aus",
+                    "value": 0
+                },
+                {
+                    "caption": "Debug",
+                    "value": 1
+                }
             ]
         }
     ],
-    "actions":
-    [
-        { "type": "Button", "label": "Gerät registrieren", "onClick": "WEBOS_RegisterDevice($id);" },
-        { "type": "Button", "label": "Geräteverbindung testen", "onClick": "WEBOS_Test($id);" }
+    "actions": [
+        {
+            "type": "Button",
+            "label": "Gerät registrieren",
+            "onClick": "WEBOS_RegisterDevice($id);"
+        },
+        {
+            "type": "Button",
+            "label": "Geräteverbindung testen",
+            "onClick": "WEBOS_Test($id);"
+        },
+        {
+            "type": "Button",
+            "label": "Status jetzt abfragen",
+            "onClick": "WEBOS_Update($id);"
+        },
+        {
+            "type": "Button",
+            "label": "Eingänge und Apps neu einlesen",
+            "onClick": "WEBOS_RefreshLists($id);"
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Meldung testen",
+            "items": [
+                {
+                    "type": "ValidationTextBox",
+                    "name": "TestMessage",
+                    "caption": "Text",
+                    "value": "Hallo vom Symcon!"
+                },
+                {
+                    "type": "RowLayout",
+                    "items": [
+                        {
+                            "type": "Button",
+                            "caption": "Einblendung senden",
+                            "onClick": "WEBOS_Notify($id, $TestMessage);"
+                        },
+                        {
+                            "type": "Button",
+                            "caption": "Hinweisfenster (10 s)",
+                            "onClick": "WEBOS_Alert($id, 'Symcon', $TestMessage, 10);"
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "status": [
+        {
+            "code": 102,
+            "icon": "active",
+            "caption": "Instanz ist aktiv"
+        },
+        {
+            "code": 104,
+            "icon": "inactive",
+            "caption": "Bitte IP-Adresse eintragen"
+        }
     ]
 }

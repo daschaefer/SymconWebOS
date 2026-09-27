@@ -164,6 +164,21 @@
             "caption": "Fernbedienung (Visualisierung)",
             "items": [
                 {
+                    "name": "REMOTE_STYLE",
+                    "type": "Select",
+                    "caption": "Darstellung",
+                    "options": [
+                        {
+                            "caption": "Fernbedienung (mit Gehäuse)",
+                            "value": 0
+                        },
+                        {
+                            "caption": "Vollflächig (ganze Seite, ideal fürs Handy)",
+                            "value": 1
+                        }
+                    ]
+                },
+                {
                     "name": "TILE_REMOTE",
                     "type": "CheckBox",
                     "caption": "Kachel-Visualisierung: Instanz als Fernbedienung darstellen"

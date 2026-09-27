@@ -31,7 +31,7 @@
         background: linear-gradient(160deg, var(--body-hi), var(--body) 55%);
         box-shadow: 0 10px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
         color: var(--text);
-        display: grid; gap: 12px;
+        display: grid; gap: 10px;
         grid-template-columns: 1fr;
         grid-template-areas: "head" "top" "nav" "sub" "rock" "media" "color" "apps";
         transform-origin: center center;
@@ -84,12 +84,12 @@
     .dpad button { position: absolute; background: transparent; box-shadow: none; border-radius: 14px; color: var(--muted); }
     .dpad button:hover { color: var(--text); background: rgba(255,255,255,.05); }
     .dpad button:active, .dpad button.pressed { background: rgba(255,255,255,.12); color: #fff; }
-    .dpad .up    { top: 8px;  left: 65px; width: 60px; height: 48px; }
-    .dpad .down  { bottom: 8px; left: 65px; width: 60px; height: 48px; }
-    .dpad .left  { left: 8px;  top: 65px; width: 48px; height: 60px; }
-    .dpad .right { right: 8px; top: 65px; width: 48px; height: 60px; }
+    .dpad .up    { top: 4%;    left: 34%; width: 32%; height: 25%; }
+    .dpad .down  { bottom: 4%; left: 34%; width: 32%; height: 25%; }
+    .dpad .left  { left: 4%;   top: 34%;  width: 25%; height: 32%; }
+    .dpad .right { right: 4%;  top: 34%;  width: 25%; height: 32%; }
     .dpad .ok {
-        top: 55px; left: 55px; width: 80px; height: 80px; border-radius: 50%;
+        top: 29%; left: 29%; width: 42%; height: 42%; border-radius: 50%;
         background: linear-gradient(160deg, #3d4149, #2c2f35); color: var(--text); font-weight: 700; font-size: 15px; letter-spacing: .5px;
         box-shadow: 0 3px 8px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08);
     }
@@ -117,10 +117,52 @@
     .c-red { background: #d33b3b; } .c-green { background: #3fae5a; } .c-yellow { background: #e1c542; } .c-blue { background: #3a74d6; }
     .color button:hover { filter: brightness(1.15); }
 
-    .apps { grid-area: apps; display: flex; flex-wrap: wrap; gap: 6px; max-height: 72px; overflow-y: auto; }
-    .apps button { height: 30px; padding: 0 10px; border-radius: 15px; font-size: 12px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .apps { grid-area: apps; display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
+    .apps::-webkit-scrollbar { display: none; }
+    .apps button { flex: none; height: 30px; padding: 0 12px; border-radius: 15px; font-size: 12px; max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .apps button.current { background: #3b2a31; color: #ff8aa5; }
     .apps:empty { display: none; }
+
+    /* ---------- Full-area page layout ---------- */
+    html.page, body.page { background: var(--body); overflow-y: auto; }
+    body.page #stage { align-items: stretch; justify-content: stretch; height: auto; min-height: 100%; }
+    body.page #remote {
+        width: 100% !important; min-height: 100vh; transform: none !important;
+        border-radius: 0; box-shadow: none; background: var(--body);
+        padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+        gap: 12px; align-content: stretch;
+        grid-template-rows: auto auto 1fr auto auto auto auto auto;
+    }
+    body.page #remote.wide { grid-template-columns: 1fr 1.25fr; grid-template-rows: auto 1fr auto auto auto; column-gap: 24px; }
+    body.page .nav { min-height: 0; overflow: hidden; }
+    body.page .dpad { width: 220px; height: 220px; flex: none; } /* real size is set by fit() */
+    body.page .dpad .ok { font-size: 20px; }
+    body.page .dpad svg { width: 26px; height: 26px; }
+    body.page .title .app { font-size: 18px; }
+    body.page .title .sub { font-size: 13px; }
+    body.page .power { width: 46px; height: 46px; }
+    body.page .top { grid-template-columns: 1fr 48px 48px; gap: 10px; }
+    body.page .top button, body.page select { height: 44px; font-size: 15px; }
+    body.page select { background-position: calc(100% - 17px) 20px, calc(100% - 12px) 20px; }
+    body.page .sub button { height: 42px; font-size: 14px; }
+    body.page .rocker button { height: 50px; font-size: 24px; }
+    body.page .mute { width: 58px; height: 58px; }
+    body.page .vol { font-size: 13px; }
+    body.page .media button { height: 42px; }
+    body.page .media svg { width: 20px; height: 20px; }
+    body.page .color button { height: 16px; }
+    body.page .apps button { height: 38px; font-size: 14px; padding: 0 16px; border-radius: 19px; }
+    /* short screens (phone in landscape) */
+    @media (max-height: 520px) {
+        body.page #remote { gap: 8px; padding-top: 8px; padding-bottom: 8px; }
+        body.page .power { width: 38px; height: 38px; }
+        body.page .top button, body.page select { height: 36px; font-size: 13px; }
+        body.page .sub button, body.page .media button { height: 34px; }
+        body.page .rocker button { height: 38px; font-size: 20px; }
+        body.page .mute { width: 46px; height: 46px; }
+        body.page .apps button { height: 32px; font-size: 13px; }
+        body.page .title .app { font-size: 15px; }
+    }
 
     .off .dpad, .off .rock, .off .media, .off .color, .off .apps, .off .sub, .off .top select, .off .top button { opacity: .35; pointer-events: none; }
 </style>
@@ -197,6 +239,7 @@
 <script>
     var state = { power: false, muted: false, volume: null, external: false, app: '', appId: '', input: -1, inputs: [], apps: [] };
     var remote = document.getElementById('remote');
+    if (window.REMOTE_STYLE === 'page') { document.body.classList.add('page'); document.documentElement.classList.add('page'); }
 
     function send(ident, value) {
         if (navigator.vibrate) { try { navigator.vibrate(8); } catch (e) {} }
@@ -278,13 +321,51 @@
     }
 
     // Scale the remote to the tile size; wide tiles get a two-column layout
+    // Fills the available area: scales to the height and stretches the width (buttons get wider)
+    var fitting = false;
     function fit() {
+        if (fitting) return;
+        fitting = true;
+        autoHeight();
         var W = window.innerWidth, H = window.innerHeight;
-        remote.classList.toggle('wide', W / Math.max(H, 1) > 1.25);
+        var wide = W / Math.max(H, 1) > 1.25;
+        remote.classList.toggle('wide', wide);
+        if (document.body.classList.contains('page')) {
+            // d-pad as large as the free row allows
+            var nav = remote.querySelector('.nav'), dp = remote.querySelector('.dpad');
+            dp.style.width = dp.style.height = '0px';
+            var size = Math.max(140, Math.min(nav.clientWidth - 8, nav.clientHeight - 8, 380));
+            dp.style.width = dp.style.height = size + 'px';
+            fitting = false;
+            return;
+        }
+        var base = wide ? 540 : 250, maxW = wide ? 760 : 380;
         remote.style.transform = 'none';
-        var w = remote.offsetWidth, h = remote.offsetHeight;
-        var s = Math.min((W - 8) / w, (H - 8) / h, 2.2);
-        remote.style.transform = 'scale(' + Math.max(0.2, s) + ')';
+        remote.style.width = base + 'px';
+        var h = remote.offsetHeight;
+        var s = Math.max(0.2, Math.min((W - 4) / base, (H - 4) / h, 2.4));
+        var w = Math.max(base, Math.min(maxW, (W - 4) / s));   // use the free width
+        remote.style.width = w + 'px';
+        h = remote.offsetHeight;
+        s = Math.max(0.2, Math.min((W - 4) / w, (H - 4) / h, 2.4));
+        remote.style.transform = 'scale(' + s + ')';
+        fitting = false;
+    }
+
+    // Classic WebFront: the HTMLBox iframe (data-autoheight) is sized to the free screen height
+    function autoHeight() {
+        try {
+            var f = window.frameElement;
+            if (!f || !f.hasAttribute('data-autoheight')) return;
+            var top = f.getBoundingClientRect().top;
+            var avail = Math.floor(window.parent.innerHeight - Math.max(0, top) - 6);
+            var hgt = Math.max(300, avail);
+            if (Math.abs(f.offsetHeight - hgt) > 2) {
+                f.style.aspectRatio = 'auto';
+                f.style.maxHeight = 'none';
+                f.style.height = hgt + 'px';
+            }
+        } catch (e) { /* other origin -> keep size */ }
     }
     window.addEventListener('resize', fit);
     render();

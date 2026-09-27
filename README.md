@@ -57,7 +57,7 @@ Ursprünglich entwickelt von Daniel Schaefer ([daschaefer/SymconWebOS](https://g
 | Status abfragen alle | Intervall der Statusabfrage in Sekunden, `0` = aus (Standard 10) |
 | Variablen | Häkchen für die Variablen, die unter der Instanz angelegt werden sollen (siehe Kapitel 5) |
 | Apps und Eingänge | Tabellen mit den vom TV gelesenen Apps/Eingängen. Häkchen „In Auswahl“ = erscheint in den Auswahlen und der Fernbedienung |
-| Fernbedienung (Visualisierung) | Kachel-Fernbedienung und/oder HTMLBox fürs alte WebFront (siehe Kapitel 6) |
+| Fernbedienung (Visualisierung) | Darstellung (Fernbedienung mit Gehäuse oder vollflächig), Kachel-Fernbedienung und/oder HTMLBox fürs alte WebFront (siehe Kapitel 6) |
 | Meldungen auf dem TV | Standard-Symbol für Meldungen (Medienobjekt, optional) |
 | Log-Level | `Debug` schreibt zusätzlich ins Meldungsfenster. Der Debug-Reiter der Instanz zeigt immer alle Details |
 
@@ -101,6 +101,11 @@ Alle Variablen werden per Häkchen im Formular angelegt bzw. entfernt.
 **Profile:** `WEBOS.Volume`, `WEBOS.Mute`, `WEBOS.VolumeStep`, `WEBOS.Remote`, `WEBOS.Media`, `WEBOS.Channel`, `WEBOS.SoundOutput` sowie je Instanz `WEBOS.Input.<InstanzID>` und `WEBOS.Apps.<InstanzID>`.
 
 ## 6. Visualisierung / Fernbedienung
+
+**Darstellung** (gilt für Kachel und WebFront):
+
+- **Fernbedienung (mit Gehäuse)** – sieht aus wie eine echte Fernbedienung und skaliert auf die verfügbare Fläche.
+- **Vollflächig (ganze Seite)** – die Bedienelemente nutzen die komplette Fläche wie eine App; das Steuerkreuz wird so groß wie der freie Platz. Ideal fürs Handy. Im Querformat wechselt die Ansicht automatisch auf zwei Spalten.
 
 **Kachel-Visualisierung**
 

@@ -92,7 +92,8 @@ class WebOSDevice extends IPSModule
 
         // Remote control for the classic WebFront (HTMLBox variable + WebHook)
         $this->RegisterPropertyBoolean("WEBFRONT_REMOTE", false);
-        $this->RegisterPropertyInteger("WEBFRONT_HEIGHT", 0); // 0 = automatic (fits width and screen height, e.g. on phones)
+        $this->RegisterPropertyInteger("WEBFRONT_HEIGHT", 0);
+        $this->RegisterPropertyInteger("REMOTE_STYLE", 0); // 0 = remote control look, 1 = full area (page) // 0 = automatic (fits width and screen height, e.g. on phones)
 
         // Private properties
         $this->RegisterPropertyString("DEVICE_PATH", "/");
@@ -176,9 +177,11 @@ class WebOSDevice extends IPSModule
                 $size = 'height:' . max(200, $height) . 'px';
             } else {
                 // automatic: portrait proportions of the remote, but never higher than the screen
+                // automatic: the remote sizes the frame to the free screen height itself (see module.html, autoHeight)
                 $size = 'aspect-ratio:25/61;height:auto;max-height:92vh;min-height:320px';
             }
-            $this->setVar('RemoteHTML', '<iframe src="' . $this->hookName() . '" style="display:block;width:100%;' . $size . ';border:0;background:transparent" allowtransparency="true"></iframe>');
+            $auto = $height > 0 ? '' : ' data-autoheight="1"';
+            $this->setVar('RemoteHTML', '<iframe src="' . $this->hookName() . '"' . $auto . ' style="display:block;width:100%;' . $size . ';border:0;background:transparent" allowtransparency="true"></iframe>');
         }
 
         // Polling
@@ -204,7 +207,7 @@ class WebOSDevice extends IPSModule
     // HTML-SDK: returns the remote control tile
     public function GetVisualizationTile()
     {
-        $html = file_get_contents(__DIR__ . '/module.html');
+        $html = $this->remoteHtml();
         $state = json_encode($this->tileState(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
         return $html . '<script>handleMessage(' . json_encode($state, JSON_HEX_TAG) . ');</script>';
     }
@@ -918,6 +921,13 @@ class WebOSDevice extends IPSModule
 
     // ---------- Remote control for the classic WebFront (WebHook) ----------
 
+    // Remote HTML with the selected style (remote control look or full area page)
+    private function remoteHtml()
+    {
+        $style = $this->ReadPropertyInteger('REMOTE_STYLE') == 1 ? 'page' : 'remote';
+        return str_replace('<head>', '<head><script>var REMOTE_STYLE = "' . $style . '";</script>', file_get_contents(__DIR__ . '/module.html'));
+    }
+
     private function hookName()
     {
         return '/hook/webos' . $this->InstanceID;
@@ -984,7 +994,7 @@ class WebOSDevice extends IPSModule
         $state = json_encode($this->tileState(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
         $poll = '<script>handleMessage(' . json_encode($state, JSON_HEX_TAG) . ');'
               . 'setInterval(function(){if(document.hidden)return;fetch(HOOK+"?state=1",{cache:"no-store"}).then(function(r){return r.text();}).then(function(t){handleMessage(t);}).catch(function(){});},3000);</script>';
-        $html = str_replace('<head>', '<head>' . $shim, file_get_contents(__DIR__ . '/module.html'));
+        $html = str_replace('<head>', '<head>' . $shim, $this->remoteHtml());
         header('Content-Type: text/html; charset=utf-8');
         echo $html . $poll;
     }

@@ -701,8 +701,27 @@ class WebOSDevice extends IPSModule
             IPS_CreateVariableProfile($Name, $Type);
         }
         IPS_SetVariableProfileIcon($Name, $Icon);
+
+        // Nothing to do if the associations are already identical
+        $current = [];
         foreach (IPS_GetVariableProfile($Name)['Associations'] as $old) {
-            IPS_SetVariableProfileAssociation($Name, $old['Value'], '', '', -1); // empty name removes the association
+            $current[(string)(float)$old['Value']] = $old['Name'];
+        }
+        $wanted = [];
+        foreach ($Associations as $a) {
+            $wanted[(string)(float)$a[0]] = $a[1];
+        }
+        if ($current == $wanted) {
+            return;
+        }
+
+        // Remove outdated associations (not possible/needed for boolean profiles, those are just overwritten)
+        if ($Type != 0) {
+            foreach ($current as $value => $caption) {
+                if (!isset($wanted[$value])) {
+                    IPS_SetVariableProfileAssociation($Name, (float)$value, '', '', -1); // empty name removes the association
+                }
+            }
         }
         if ($Type != 0 && count($Associations) > 0) {
             IPS_SetVariableProfileValues($Name, $Associations[0][0], $Associations[count($Associations) - 1][0], 0);

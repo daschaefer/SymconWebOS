@@ -2,7 +2,7 @@
 
 Dieses Modul steuert LG-Fernseher (und andere webOS-Geräte) über das Netzwerk aus IP-Symcon – inklusive Statusvariablen, Fernbedienung für die Kachel-Visualisierung und das WebFront sowie Meldungen auf dem TV.
 
-Ursprünglich entwickelt von Daniel Schaefer ([daschaefer/SymconWebOS](https://github.com/daschaefer/SymconWebOS)), erweitert um webOS-26-Unterstützung, Variablen, Fernbedienung und Meldungen.
+Entwickelt von Daniel Schaefer ([daschaefer/SymconWebOS](https://github.com/daschaefer/SymconWebOS)). Erweiterungen ab Version 1.3 (webOS-26-Pairing, Variablen, Fernbedienung, Meldungen, Bildanzeige) von Peter Chrisben. Die Änderungen je Version stehen im [CHANGELOG](CHANGELOG.md).
 
 ### Inhaltsverzeichnis
 
@@ -43,8 +43,10 @@ Ursprünglich entwickelt von Daniel Schaefer ([daschaefer/SymconWebOS](https://g
 ## 3. Installation
 
 1. In der Verwaltungskonsole unter **Kern Instanzen → Modules** das Repository hinzufügen:
-   `https://github.com/peterchrisben/SymconWebOS` (Branch `Variablen` für die erweiterte Version)
+   `https://github.com/daschaefer/SymconWebOS`
 2. Eine neue Instanz **„WebOSDevice“** (Hersteller LG) anlegen.
+
+**Update von Version 1.1/1.2:** Bestehende Instanzen bleiben erhalten. Nach dem Update einmal **„Gerät registrieren“** klicken (am TV bestätigen – die angefragten Rechte haben sich geändert) und **„Eingänge und Apps neu einlesen“**. Danach die gewünschten Variablen im Formular anhaken.
 
 ## 4. Einrichtung der Instanz
 

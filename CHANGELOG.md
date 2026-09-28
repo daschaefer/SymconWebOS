@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.7.1
+- Kompakt: nutzt im WebFront (Handy) die ganze Höhe – Steuerkreuz größer, VOL/CH direkt daneben, restliche Höhe gleichmäßig verteilt; im Querformat schlank und mittig.
+
 ## 1.7
 - Neue Darstellung **Kompakt**: vollflächig ohne Gehäuse, Power-Taste mittig, VOL/CH neben dem Steuerkreuz, ohne Farbtasten.
 - Kachel-Visualisierung: oben bleibt Platz für Kachelnamen und Vergrößern-Symbol (Power-Taste wurde verdeckt, Name überlappte).

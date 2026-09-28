@@ -168,12 +168,17 @@
     #compact { display: none; }
     body.compact #remote { display: none; }
     /* full area, no remote housing - the layout is scaled to the tile and uses its whole width */
-    html.compact, body.compact { background: var(--body); }
+    html.compact, body.compact { background: var(--body); overflow: hidden; }
+    body.compact #stage { display: block; position: relative; }
     body.compact #compact {
-        display: grid; gap: 10px; width: 250px; box-sizing: border-box; padding: 6px 8px 8px;
-        border-radius: 0; background: transparent; box-shadow: none;
-        color: var(--text); transform-origin: center center;
+        position: absolute; left: 0; top: 0; transform-origin: 0 0;
+        display: grid; gap: 10px; box-sizing: border-box; padding: 8px 10px 10px;
+        grid-template-rows: auto auto 1fr auto auto auto; align-content: stretch;
+        border-radius: 0; background: transparent; box-shadow: none; color: var(--text);
     }
+    body.compact .c-nav { min-height: 0; }
+    body.compact .c-rock { align-self: center; }
+    body.compact .c-rock button { flex: 1; height: auto; min-height: 36px; }
     .cmp > * { grid-area: auto !important; } /* the classic layout uses named grid areas */
     .c-head { display: flex; flex-direction: column; align-items: center; gap: 8px; }
     .c-power { width: 56px; height: 38px; border-radius: 12px; background: #3a2328; color: #ff5a7a; }
@@ -181,8 +186,8 @@
     .c-title { display: flex; align-items: center; justify-content: center; gap: 7px; max-width: 100%; min-width: 0; }
     .c-title .app { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .c-input { width: 100%; height: 34px; }
-    .c-nav { display: grid; grid-template-columns: 36px 1fr 36px; align-items: center; gap: 6px; }
-    .c-rock { display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; background: var(--key); box-shadow: 0 2px 0 rgba(0,0,0,.35); }
+    .c-nav { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 8px; }
+    .c-rock { display: flex; flex-direction: column; border-radius: 20px; overflow: hidden; background: var(--key); box-shadow: 0 2px 0 rgba(0,0,0,.35); }
     .c-rock button { height: 46px; border-radius: 0; background: transparent; box-shadow: none; font-size: 19px; font-weight: 300; }
     .c-rock button:active, .c-rock button.pressed { background: var(--key-press); }
     .c-rock .lbl { text-align: center; font-size: 9px; letter-spacing: 1px; color: var(--muted); padding: 2px 0; }
@@ -413,6 +418,30 @@
         if (document.body.classList.contains('tile')) H = Math.max(80, H - 22); // strip for tile name / expand icon
         var wide = W / Math.max(H, 1) > 1.25;
         remote.classList.toggle('wide', wide);
+        if (style === 'compact') {
+            // Full area: phone-sized design (340 px wide) scaled to the real area, d-pad fills the free height
+            var zc = Math.max(0.5, Math.min(3, W / 340, H / 520)); // never taller than the area (landscape)
+            remote.classList.remove('wide');
+            remote.style.transform = 'scale(' + zc + ')';
+            var cw = Math.min(W / zc, 420); // landscape: keep it slim and centered
+            remote.style.width = cw + 'px';
+            remote.style.height = (H / zc) + 'px';
+            remote.style.top = (window.innerHeight - H) + 'px';
+            remote.style.left = Math.max(0, (W - cw * zc) / 2) + 'px';
+            var cn = remote.querySelector('.c-nav'), cd = remote.querySelector('.dpad');
+            cd.style.width = cd.style.height = '0px';
+            each('#compact .c-rock', function (r) { r.style.height = '0px'; });
+            var free = cn.clientWidth - 2 * 44 - 2 * 8;
+            var cs = Math.max(110, Math.min(free, cn.clientHeight - 4, 320));
+            cd.style.width = cd.style.height = cs + 'px';
+            each('#compact .c-rock', function (r) { r.style.height = Math.round(cs * 0.9) + 'px'; });
+            // tall screens (phone): spread the remaining height evenly between the rows instead of empty space around the d-pad
+            remote.style.rowGap = '10px';
+            var left = cn.clientHeight - cs;
+            if (left > 10) remote.style.rowGap = Math.min(40, 10 + left / 5) + 'px';
+            fitting = false;
+            return;
+        }
         if (document.body.classList.contains('page')) {
             // Work on a phone-sized layout (390 px wide, 740 px in landscape) and scale it to the real area.
             // The iOS WebFront renders pages ~900 px wide and shrinks them - without this everything would be tiny.

@@ -164,22 +164,56 @@
         body.page .title .app { font-size: 15px; }
     }
 
-    .off .dpad, .off .rock, .off .media, .off .color, .off .apps, .off .sub, .off .top select, .off .top button { opacity: .35; pointer-events: none; }
+    /* ---------- Compact remote ---------- */
+    #compact { display: none; }
+    body.compact #remote { display: none; }
+    /* full area, no remote housing - the layout is scaled to the tile and uses its whole width */
+    html.compact, body.compact { background: var(--body); }
+    body.compact #compact {
+        display: grid; gap: 10px; width: 250px; box-sizing: border-box; padding: 6px 8px 8px;
+        border-radius: 0; background: transparent; box-shadow: none;
+        color: var(--text); transform-origin: center center;
+    }
+    .cmp > * { grid-area: auto !important; } /* the classic layout uses named grid areas */
+    .c-head { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .c-power { width: 56px; height: 38px; border-radius: 12px; background: #3a2328; color: #ff5a7a; }
+    .c-power.on { background: var(--accent); color: #fff; box-shadow: 0 0 14px rgba(212,0,60,.5); }
+    .c-title { display: flex; align-items: center; justify-content: center; gap: 7px; max-width: 100%; min-width: 0; }
+    .c-title .app { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .c-input { width: 100%; height: 34px; }
+    .c-nav { display: grid; grid-template-columns: 36px 1fr 36px; align-items: center; gap: 6px; }
+    .c-rock { display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; background: var(--key); box-shadow: 0 2px 0 rgba(0,0,0,.35); }
+    .c-rock button { height: 46px; border-radius: 0; background: transparent; box-shadow: none; font-size: 19px; font-weight: 300; }
+    .c-rock button:active, .c-rock button.pressed { background: var(--key-press); }
+    .c-rock .lbl { text-align: center; font-size: 9px; letter-spacing: 1px; color: var(--muted); padding: 2px 0; }
+    .cmp .dpad { width: 136px; height: 136px; margin: 0 auto; }
+    .cmp .dpad .ok { font-size: 13px; }
+    .c-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .c-row button { height: 32px; }
+    .c-mute.active { background: #5a4a1a; color: #ffcf4a; }
+    .cmp .media { gap: 5px; }
+    .cmp .media button { height: 30px; }
+    .cmp .apps button { height: 28px; font-size: 11px; padding: 0 10px; }
+
+    /* ---------- Symcon tile: keep the top strip free for the tile name and the expand icon ---------- */
+    body.tile #stage { box-sizing: border-box; padding-top: 22px; }
+
+    .off .c-rock, .off .c-row, .off .c-input, .off .dpad, .off .rock, .off .media, .off .color, .off .apps, .off .sub, .off .top select, .off .top button { opacity: .35; pointer-events: none; }
 </style>
 </head>
 <body>
 <div id="stage">
 <div id="remote" class="off">
     <div class="head">
-        <span class="dot" id="dot"></span>
-        <div class="title"><div class="app" id="app">LG TV</div><div class="sub" id="sub">aus</div></div>
-        <button class="power" id="power" title="Ein/Aus">
+        <span class="dot js-dot"></span>
+        <div class="title"><div class="app js-app">LG TV</div><div class="sub js-sub">aus</div></div>
+        <button class="power js-power" title="Ein/Aus">
             <svg viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg>
         </button>
     </div>
 
     <div class="top">
-        <select id="input" title="Eingang"></select>
+        <select class="js-input" title="Eingang"></select>
         <button data-key="HOME" title="Home"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg></button>
         <button data-key="MENU" title="Einstellungen"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
     </div>
@@ -207,8 +241,8 @@
             <button data-vol="0" title="Leiser">−</button>
         </div>
         <div class="mid">
-            <button class="mute" id="mute" title="Stumm"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M16 9l5 6"/><path d="M21 9l-5 6"/></svg></button>
-            <div class="vol" id="vol"></div>
+            <button class="mute js-mute" title="Stumm"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M16 9l5 6"/><path d="M21 9l-5 6"/></svg></button>
+            <div class="vol js-vol"></div>
         </div>
         <div class="rocker">
             <button data-ch="1" title="Sender +">+</button>
@@ -232,14 +266,58 @@
         <button class="c-blue" data-key="BLUE" title="Blau"></button>
     </div>
 
-    <div class="apps" id="apps"></div>
+    <div class="apps js-apps"></div>
+</div>
+<div id="compact" class="cmp off">
+    <div class="c-head">
+        <button class="c-power js-power" title="Ein/Aus"><svg viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg></button>
+        <div class="c-title"><span class="dot js-dot"></span><span class="app js-app">LG TV</span></div>
+    </div>
+    <select class="js-input c-input" title="Eingang"></select>
+    <div class="c-nav">
+        <div class="c-rock">
+            <button data-vol="1" title="Lauter">+</button>
+            <div class="lbl">VOL</div>
+            <button data-vol="0" title="Leiser">−</button>
+        </div>
+        <div class="dpad">
+            <button class="up" data-key="UP" title="Hoch"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
+            <button class="left" data-key="LEFT" title="Links"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+            <button class="ok" data-key="ENTER" title="OK">OK</button>
+            <button class="right" data-key="RIGHT" title="Rechts"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+            <button class="down" data-key="DOWN" title="Runter"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+        </div>
+        <div class="c-rock">
+            <button data-ch="1" title="Sender +">+</button>
+            <div class="lbl">CH</div>
+            <button data-ch="0" title="Sender −">−</button>
+        </div>
+    </div>
+    <div class="c-row">
+        <button data-key="BACK" title="Zurück"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+        <button data-key="HOME" title="Home"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg></button>
+        <button class="c-mute js-mute" title="Stumm"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M16 9l5 6"/><path d="M21 9l-5 6"/></svg></button>
+        <button data-key="MENU" title="Einstellungen"><svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg></button>
+    </div>
+    <div class="media">
+        <button data-media="3" title="Zurückspulen"><svg viewBox="0 0 24 24"><path d="M11 6v12l-8-6zM21 6v12l-8-6z"/></svg></button>
+        <button data-media="0" title="Play"><svg viewBox="0 0 24 24"><path d="M7 5v14l12-7z"/></svg></button>
+        <button data-media="1" title="Pause"><svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg></button>
+        <button data-media="2" title="Stop"><svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg></button>
+        <button data-media="4" title="Vorspulen"><svg viewBox="0 0 24 24"><path d="M3 6v12l8-6zM13 6v12l8-6z"/></svg></button>
+    </div>
+    <div class="apps js-apps"></div>
 </div>
 </div>
 
 <script>
     var state = { power: false, muted: false, volume: null, external: false, app: '', appId: '', input: -1, inputs: [], apps: [] };
-    var remote = document.getElementById('remote');
-    if (window.REMOTE_STYLE === 'page') { document.body.classList.add('page'); document.documentElement.classList.add('page'); }
+    var style = window.REMOTE_STYLE || 'remote';
+    if (style === 'page') { document.body.classList.add('page'); document.documentElement.classList.add('page'); }
+    if (style === 'compact') { document.body.classList.add('compact'); document.documentElement.classList.add('compact'); }
+    if (window.REMOTE_CONTEXT === 'tile') document.body.classList.add('tile');
+    var remote = document.getElementById(style === 'compact' ? 'compact' : 'remote');
+    function each(sel, fn) { document.querySelectorAll(sel).forEach(fn); }
 
     function send(ident, value) {
         if (navigator.vibrate) { try { navigator.vibrate(8); } catch (e) {} }
@@ -259,31 +337,33 @@
     document.querySelectorAll('[data-media]').forEach(function (b) {
         b.addEventListener('click', function () { send('MediaControl', parseInt(b.getAttribute('data-media'), 10)); });
     });
-    document.getElementById('power').addEventListener('click', function () {
+    each('.js-power', function (b) { b.addEventListener('click', function () {
         state.power = !state.power; render();
         send('Power', state.power);
-    });
-    document.getElementById('mute').addEventListener('click', function () {
+    }); });
+    each('.js-mute', function (b) { b.addEventListener('click', function () {
         state.muted = !state.muted; render();
         send('Muted', state.muted);
-    });
-    document.getElementById('input').addEventListener('change', function (e) {
+    }); });
+    each('.js-input', function (s) { s.addEventListener('change', function (e) {
         var v = parseInt(e.target.value, 10);
         if (v >= 0) send('Input', v);
-    });
+    }); });
 
     function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
 
     function render() {
         remote.classList.toggle('off', !state.power);
-        document.getElementById('dot').classList.toggle('on', state.power);
-        document.getElementById('power').classList.toggle('on', state.power);
-        document.getElementById('mute').classList.toggle('active', !!state.muted);
+        each('.js-dot', function (e) { e.classList.toggle('on', state.power); });
+        each('.js-power', function (e) { e.classList.toggle('on', state.power); });
+        each('.js-mute', function (e) { e.classList.toggle('active', !!state.muted); });
 
         var inputName = '';
         state.inputs.forEach(function (i) { if (i[0] === state.input) inputName = i[1]; });
-        document.getElementById('app').textContent = state.power ? (state.app || inputName || 'LG TV') : 'LG TV';
-        document.getElementById('sub').textContent = state.power ? (inputName && inputName !== state.app ? inputName : 'eingeschaltet') : 'aus';
+        var appText = state.power ? (state.app || inputName || 'LG TV') : 'LG TV';
+        each('.js-app', function (e) { e.textContent = appText; });
+        var subText = state.power ? (inputName && inputName !== state.app ? inputName : 'eingeschaltet') : 'aus';
+        each('.js-sub', function (e) { e.textContent = subText; });
 
         var vol = '';
         if (state.power) {
@@ -291,22 +371,24 @@
             else if (!state.external && state.volume !== null) vol = state.volume + ' %';
             else if (state.external) vol = 'Soundbar';
         }
-        document.getElementById('vol').textContent = vol;
+        each('.js-vol', function (e) { e.textContent = vol; });
 
-        var sel = document.getElementById('input');
-        sel.innerHTML = '';
-        var ph = el('option', '', 'Eingang'); ph.value = '-1'; sel.appendChild(ph);
-        state.inputs.forEach(function (i) { var o = el('option', '', i[1]); o.value = i[0]; sel.appendChild(o); });
-        sel.value = String(state.input >= 0 ? state.input : -1);
-        if (sel.value === '') sel.value = '-1';
+        each('.js-input', function (sel) {
+            sel.innerHTML = '';
+            var ph = el('option', '', 'Eingang'); ph.value = '-1'; sel.appendChild(ph);
+            state.inputs.forEach(function (i) { var o = el('option', '', i[1]); o.value = i[0]; sel.appendChild(o); });
+            sel.value = String(state.input >= 0 ? state.input : -1);
+            if (sel.value === '') sel.value = '-1';
+        });
 
-        var apps = document.getElementById('apps');
-        apps.innerHTML = '';
-        state.apps.forEach(function (a) {
-            var b = el('button', a[2] === state.appId ? 'current' : '', a[1]);
-            b.title = a[1];
-            b.addEventListener('click', function () { send('AppLaunch', a[0]); });
-            apps.appendChild(b);
+        each('.js-apps', function (apps) {
+            apps.innerHTML = '';
+            state.apps.forEach(function (a) {
+                var b = el('button', a[2] === state.appId ? 'current' : '', a[1]);
+                b.title = a[1];
+                b.addEventListener('click', function () { send('AppLaunch', a[0]); });
+                apps.appendChild(b);
+            });
         });
         fit();
     }
@@ -328,6 +410,7 @@
         fitting = true;
         autoHeight();
         var W = window.innerWidth, H = window.innerHeight;
+        if (document.body.classList.contains('tile')) H = Math.max(80, H - 22); // strip for tile name / expand icon
         var wide = W / Math.max(H, 1) > 1.25;
         remote.classList.toggle('wide', wide);
         if (document.body.classList.contains('page')) {
@@ -337,6 +420,7 @@
             remote.style.transform = 'scale(' + z + ')';
             remote.style.width = (W / z) + 'px';
             remote.style.height = (H / z) + 'px';
+            remote.style.top = (window.innerHeight - H) + 'px';
             // d-pad as large as the free row allows
             var nav = remote.querySelector('.nav'), dp = remote.querySelector('.dpad');
             dp.style.width = dp.style.height = '0px';
@@ -345,7 +429,9 @@
             fitting = false;
             return;
         }
-        var base = wide ? 540 : 250, maxW = wide ? 760 : 380;
+        if (style === 'compact') { wide = false; remote.classList.remove('wide'); }
+        var base = style === 'compact' ? 250 : (wide ? 540 : 250);
+        var maxW = style === 'compact' ? 420 : (wide ? 760 : 380);
         remote.style.transform = 'none';
         remote.style.width = base + 'px';
         var h = remote.offsetHeight;

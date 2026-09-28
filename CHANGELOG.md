@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7
+- Neue Darstellung **Kompakt**: vollflächig ohne Gehäuse, Power-Taste mittig, VOL/CH neben dem Steuerkreuz, ohne Farbtasten.
+- Kachel-Visualisierung: oben bleibt Platz für Kachelnamen und Vergrößern-Symbol (Power-Taste wurde verdeckt, Name überlappte).
+- **Live TV** (Antenne/Kabel/SAT) als Eintrag in der Eingangsauswahl (`WEBOS_SetInput($id, "LIVETV")`).
+- **Favoriten** für Apps: neue Spalte im Formular, Favoriten erscheinen als Schnellwahl-Knöpfe.
+- Formular: Namen und IDs in den Tabellen „Eingänge“/„Apps“ werden wieder angezeigt und gespeichert.
+- README: Tipps zum Einschalten (Einstellung unter „Verbindung“, MAC aus dem Router).
+
 ## 1.6.1
 - Vollflächige Fernbedienung wird auf Handy-Größe umgerechnet und skaliert (iOS-WebFront zeigte sie sonst sehr klein).
 

@@ -97,7 +97,7 @@ class WebOSDevice extends IPSModule
         // Remote control for the classic WebFront (HTMLBox variable + WebHook)
         $this->RegisterPropertyBoolean("WEBFRONT_REMOTE", false);
         $this->RegisterPropertyInteger("WEBFRONT_HEIGHT", 0);
-        $this->RegisterPropertyInteger("REMOTE_STYLE", 0); // 0 = remote control look, 1 = full area (page) // 0 = automatic (fits width and screen height, e.g. on phones)
+        $this->RegisterPropertyInteger("REMOTE_STYLE", 0); // 0 = remote control look, 1 = full area (page), 2 = compact // 0 = automatic (fits width and screen height, e.g. on phones)
 
         // Private properties
         $this->RegisterPropertyString("DEVICE_PATH", "/");
@@ -204,6 +204,29 @@ class WebOSDevice extends IPSModule
         }
     }
 
+    // Form: fill the app/input tables from the stored data (names and IDs are not part of the saved check boxes)
+    public function GetConfigurationForm()
+    {
+        $form = json_decode(file_get_contents(__DIR__ . '/form.json'), true);
+        $values = [
+            'INPUT_LIST' => array_map(function ($r) { return ['label' => $r['label'], 'id' => $r['id'] ?? '', 'appId' => $r['appId'] ?? '', 'show' => (bool)$r['show']]; }, $this->getInputs()),
+            'APP_LIST'   => array_map(function ($r) { return ['title' => $r['title'], 'id' => $r['id'] ?? '', 'show' => (bool)$r['show'], 'fav' => (bool)($r['fav'] ?? false)]; }, $this->getApps())
+        ];
+        $fill = function (&$items) use (&$fill, $values) {
+            foreach ($items as &$item) {
+                if (isset($item['name']) && isset($values[$item['name']]) && ($item['type'] ?? '') == 'List') {
+                    $item['values'] = $values[$item['name']];
+                    $item['loadValuesFromConfiguration'] = false;
+                }
+                if (isset($item['items']) && is_array($item['items'])) {
+                    $fill($item['items']);
+                }
+            }
+        };
+        $fill($form['elements']);
+        return json_encode($form);
+    }
+
     public function MessageSink($TimeStamp, $SenderID, $Message, $Data)
     {
         if ($Message == IPS_KERNELSTARTED) {
@@ -214,7 +237,7 @@ class WebOSDevice extends IPSModule
     // HTML-SDK: returns the remote control tile
     public function GetVisualizationTile()
     {
-        $html = $this->remoteHtml();
+        $html = $this->remoteHtml('tile');
         $state = json_encode($this->tileState(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
         return $html . '<script>handleMessage(' . json_encode($state, JSON_HEX_TAG) . ');</script>';
     }
@@ -546,7 +569,7 @@ class WebOSDevice extends IPSModule
             case 'Input':
                 $inputs = $this->getInputs();
                 if (isset($inputs[$Value])) {
-                    $response = $this->ssap('ssap://tv/switchInput', ['inputId' => $inputs[$Value]['id']]);
+                    $response = $this->switchInput($inputs[$Value]['id']);
                     $this->setVar('Input', (int)$Value);
                     $this->setTileState(['input' => (int)$Value, 'app' => $inputs[$Value]['label'], 'appId' => $inputs[$Value]['appId'] ?? '']);
                 }
@@ -650,6 +673,10 @@ class WebOSDevice extends IPSModule
 
             // Input Controls
             case 'InputSource':
+                if (strtoupper((string)$Value) == 'LIVETV') {
+                    $response = $this->switchInput('LIVETV');
+                    break;
+                }
                 $command = '{"id":"setInputSource","type":"request","uri":"ssap://tv/switchInput","payload":{"inputId":"'.$Value.'"}}';
                 $response = $this->send_command($command);
                 break;
@@ -1055,9 +1082,15 @@ class WebOSDevice extends IPSModule
         foreach ($this->getInputs() as $i => $input) {
             if (!empty($input['show'])) $state['inputs'][] = [$i, $input['label']];
         }
+        // quick buttons: favourites; without favourites all apps "in selection"
+        $apps = $this->getApps();
+        $hasFav = false;
+        foreach ($apps as $app) {
+            if (!empty($app['fav'])) $hasFav = true;
+        }
         $state['apps'] = [];
-        foreach ($this->getApps() as $i => $app) {
-            if (!empty($app['show'])) $state['apps'][] = [$i, $app['title'], ($app['id'] ?? '')];
+        foreach ($apps as $i => $app) {
+            if ($hasFav ? !empty($app['fav']) : !empty($app['show'])) $state['apps'][] = [$i, $app['title'], ($app['id'] ?? '')];
         }
         return $state;
     }
@@ -1077,10 +1110,12 @@ class WebOSDevice extends IPSModule
     // ---------- Remote control for the classic WebFront (WebHook) ----------
 
     // Remote HTML with the selected style (remote control look or full area page)
-    private function remoteHtml()
+    // $Context: 'tile' (tile visualization, keeps the top strip free for the tile name) or 'webfront'
+    private function remoteHtml($Context = 'webfront')
     {
-        $style = $this->ReadPropertyInteger('REMOTE_STYLE') == 1 ? 'page' : 'remote';
-        return str_replace('<head>', '<head><script>var REMOTE_STYLE = "' . $style . '";</script>', file_get_contents(__DIR__ . '/module.html'));
+        $styles = [0 => 'remote', 1 => 'page', 2 => 'compact'];
+        $style = $styles[$this->ReadPropertyInteger('REMOTE_STYLE')] ?? 'remote';
+        return str_replace('<head>', '<head><script>var REMOTE_STYLE = "' . $style . '"; var REMOTE_CONTEXT = "' . $Context . '";</script>', file_get_contents(__DIR__ . '/module.html'));
     }
 
     private function hookName()
@@ -1254,6 +1289,15 @@ class WebOSDevice extends IPSModule
         $this->setProfileAssociations($this->appProfileName(), 1, 'Script', $assoc);
     }
 
+    // Switches to an input (HDMI_1 ...) or to Live TV (id LIVETV)
+    private function switchInput($Id)
+    {
+        if ($Id == 'LIVETV') {
+            return $this->ssap('ssap://system.launcher/launch', ['id' => 'com.webos.app.livetv']);
+        }
+        return $this->ssap('ssap://tv/switchInput', ['inputId' => $Id]);
+    }
+
     private function refreshInputs()
     {
         $p = $this->ssap('ssap://tv/getExternalInputList');
@@ -1262,7 +1306,13 @@ class WebOSDevice extends IPSModule
             return false;
         }
         $show = $this->showFlags($this->getInputs());
-        $inputs = [];
+        // Live TV (antenna / cable / satellite) is not an external input - add it as first entry
+        $inputs = [[
+            'label' => 'Live TV',
+            'id'    => 'LIVETV',
+            'appId' => 'com.webos.app.livetv',
+            'show'  => $show['LIVETV'] ?? true
+        ]];
         foreach ($p['devices'] as $d) {
             if (!isset($d['id'])) continue;
             $inputs[] = [
@@ -1293,8 +1343,10 @@ class WebOSDevice extends IPSModule
         usort($apps, function ($a, $b) { return strcasecmp($a['title'], $b['title']); });
         $apps = array_slice($apps, 0, 100);
         $show = $this->showFlags($this->getApps());
+        $fav = $this->showFlags($this->getApps(), 'fav');
         foreach ($apps as &$app) {
-            $app['show'] = $show[$app['id']] ?? true; // new entries are shown by default
+            $app['show'] = $show[$app['id']] ?? true;  // new entries are shown by default
+            $app['fav'] = $fav[$app['id']] ?? false;
         }
         unset($app);
         return $this->saveList('APP_LIST', $apps);
@@ -1322,37 +1374,42 @@ class WebOSDevice extends IPSModule
         }
         $data = array_values($data);
 
-        // show flags by id (if the form delivered ids) or by position
+        // check boxes (show, fav) by id (if the form delivered ids) or by position
+        $keys = ['show' => true, 'fav' => false];
         $byId = [];
         foreach ($rows as $row) {
-            if (is_array($row) && isset($row['id'], $row['show'])) $byId[$row['id']] = (bool)$row['show'];
+            if (!is_array($row) || !isset($row['id'])) continue;
+            foreach ($keys as $key => $default) {
+                if (array_key_exists($key, $row)) $byId[$key][$row['id']] = (bool)$row[$key];
+            }
         }
         $list = [];
         foreach ($data as $i => $item) {
             if (!is_array($item)) continue;
             $id = $item['id'] ?? '';
-            if ($id !== '' && isset($byId[$id])) {
-                $show = $byId[$id];
-            } elseif (isset($rows[$i]) && is_array($rows[$i]) && array_key_exists('show', $rows[$i])) {
-                $show = (bool)$rows[$i]['show'];
-            } else {
-                $show = (bool)($item['show'] ?? true);
+            foreach ($keys as $key => $default) {
+                if ($id !== '' && isset($byId[$key][$id])) {
+                    $item[$key] = $byId[$key][$id];
+                } elseif (isset($rows[$i]) && is_array($rows[$i]) && !isset($rows[$i]['id']) && array_key_exists($key, $rows[$i])) {
+                    $item[$key] = (bool)$rows[$i][$key];
+                } else {
+                    $item[$key] = (bool)($item[$key] ?? $default);
+                }
             }
             $name = trim((string)($item[$NameKey] ?? ''));
             if ($name === '') $name = $id !== '' ? $id : ('#' . ($i + 1));
             $item[$NameKey] = $name;
-            $item['show'] = $show;
             $list[] = $item;
         }
         return $list;
     }
 
     // id => show flag of an existing list (keeps the user's selection when the list is read again)
-    private function showFlags($list)
+    private function showFlags($list, $Key = 'show')
     {
         $flags = [];
         foreach ($list as $row) {
-            if (isset($row['id'])) $flags[$row['id']] = !empty($row['show']);
+            if (isset($row['id'])) $flags[$row['id']] = !empty($row[$Key]);
         }
         return $flags;
     }

@@ -94,7 +94,7 @@
             "items": [
                 {
                     "type": "Label",
-                    "caption": "Die Listen werden mit \"Eingänge und Apps neu einlesen\" vom TV geladen. Häkchen = erscheint in der Auswahl der Variablen \"Eingang\" bzw. \"App starten\". Danach \"Übernehmen\" klicken."
+                    "caption": "Die Listen werden mit \"Eingänge und Apps neu einlesen\" vom TV geladen. \"In Auswahl\" = erscheint in den Variablen \"Eingang\" bzw. \"App starten\". \"Favorit\" = erscheint als Schnellwahl-Knopf auf der Fernbedienung (ohne Favoriten: alle Apps \"In Auswahl\"). Danach \"Übernehmen\" klicken."
                 },
                 {
                     "type": "List",
@@ -107,17 +107,20 @@
                         {
                             "caption": "Name",
                             "name": "label",
-                            "width": "auto"
+                            "width": "auto",
+                            "save": true
                         },
                         {
                             "caption": "Eingangs-ID",
                             "name": "id",
-                            "width": "160px"
+                            "width": "160px",
+                            "save": true
                         },
                         {
                             "caption": "App-ID",
                             "name": "appId",
-                            "width": "220px"
+                            "width": "220px",
+                            "save": true
                         },
                         {
                             "caption": "In Auswahl",
@@ -125,7 +128,8 @@
                             "width": "100px",
                             "edit": {
                                 "type": "CheckBox"
-                            }
+                            },
+                            "save": true
                         }
                     ]
                 },
@@ -140,12 +144,14 @@
                         {
                             "caption": "Name",
                             "name": "title",
-                            "width": "auto"
+                            "width": "auto",
+                            "save": true
                         },
                         {
                             "caption": "App-ID (für WEBOS_LaunchApp)",
                             "name": "id",
-                            "width": "300px"
+                            "width": "300px",
+                            "save": true
                         },
                         {
                             "caption": "In Auswahl",
@@ -153,7 +159,17 @@
                             "width": "100px",
                             "edit": {
                                 "type": "CheckBox"
-                            }
+                            },
+                            "save": true
+                        },
+                        {
+                            "caption": "Favorit",
+                            "name": "fav",
+                            "width": "90px",
+                            "edit": {
+                                "type": "CheckBox"
+                            },
+                            "save": true
                         }
                     ]
                 }
@@ -171,6 +187,10 @@
                         {
                             "caption": "Fernbedienung (mit Gehäuse)",
                             "value": 0
+                        },
+                        {
+                            "caption": "Kompakt (vollflächig, VOL/CH neben dem Steuerkreuz)",
+                            "value": 2
                         },
                         {
                             "caption": "Vollflächig (ganze Seite, ideal fürs Handy)",

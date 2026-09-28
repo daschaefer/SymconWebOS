@@ -24,7 +24,7 @@ Entwickelt von Daniel Schaefer ([daschaefer/SymconWebOS](https://github.com/dasc
 
 - Ein- und Ausschalten (Einschalten per Wake-on-LAN)
 - Lautstärke, Stummschaltung, Lautstärke +/- (auch bei Soundbar an ARC/eARC)
-- Eingänge (HDMI usw.) wählen, Apps starten, Sender wechseln, Wiedergabe steuern
+- Eingänge (HDMI usw. und Live TV für Antenne/Kabel/SAT) wählen, Apps starten, Sender wechseln, Wiedergabe steuern
 - Tonausgabe umschalten (TV-Lautsprecher, ARC, Optisch, Bluetooth …)
 - Fernbedienungstasten (Pfeiltasten, OK, Zurück, Home, Farbtasten …)
 - Zyklische Statusabfrage: Power, Lautstärke, Stumm, Eingang, aktuelle App, Sender, Tonausgabe
@@ -58,8 +58,8 @@ Entwickelt von Daniel Schaefer ([daschaefer/SymconWebOS](https://github.com/dasc
 | Port | `3001` (verschlüsselt, Standard). `3000` nur bei sehr alten Geräten |
 | Status abfragen alle | Intervall der Statusabfrage in Sekunden, `0` = aus (Standard 10) |
 | Variablen | Häkchen für die Variablen, die unter der Instanz angelegt werden sollen (siehe Kapitel 5) |
-| Apps und Eingänge | Tabellen mit den vom TV gelesenen Apps/Eingängen. Häkchen „In Auswahl“ = erscheint in den Auswahlen und der Fernbedienung |
-| Fernbedienung (Visualisierung) | Darstellung (Fernbedienung mit Gehäuse oder vollflächig), Kachel-Fernbedienung und/oder HTMLBox fürs alte WebFront (siehe Kapitel 6) |
+| Apps und Eingänge | Tabellen mit den vom TV gelesenen Apps/Eingängen (inkl. „Live TV“). „In Auswahl“ = erscheint in den Variablen „Eingang“/„App starten“ und in der Eingangsauswahl der Fernbedienung. „Favorit“ = erscheint als Schnellwahl-Knopf auf der Fernbedienung |
+| Fernbedienung (Visualisierung) | Darstellung (mit Gehäuse, Kompakt oder vollflächig), Kachel-Fernbedienung und/oder HTMLBox fürs alte WebFront (siehe Kapitel 6) |
 | Meldungen auf dem TV | Standard-Symbol für Meldungen (Medienobjekt, optional) und Symcon-Adresse für Bilder (leer = automatisch) |
 | Log-Level | `Debug` schreibt zusätzlich ins Meldungsfenster. Der Debug-Reiter der Instanz zeigt immer alle Details |
 
@@ -107,6 +107,7 @@ Alle Variablen werden per Häkchen im Formular angelegt bzw. entfernt.
 **Darstellung** (gilt für Kachel und WebFront):
 
 - **Fernbedienung (mit Gehäuse)** – sieht aus wie eine echte Fernbedienung und skaliert auf die verfügbare Fläche.
+- **Kompakt** – vollflächig ohne Gehäuse, platzsparend: Power-Taste mittig, VOL- und CH-Wippe links und rechts neben dem Steuerkreuz, ohne Farbtasten. Ideal für Kacheln.
 - **Vollflächig (ganze Seite)** – die Bedienelemente nutzen die komplette Fläche wie eine App; das Steuerkreuz wird so groß wie der freie Platz. Ideal fürs Handy. Im Querformat wechselt die Ansicht automatisch auf zwei Spalten.
 
 **Kachel-Visualisierung**
@@ -121,7 +122,11 @@ Alle Variablen werden per Häkchen im Formular angelegt bzw. entfernt.
 2. Die Variable „Fernbedienung“ im WebFront verlinken.
 3. Das Modul registriert dafür den WebHook `/hook/webos<InstanzID>`. Der Hook ist wie alle Symcon-Hooks im Netzwerk erreichbar; bei Bedarf im WebHook Control Zugangsdaten setzen.
 
-Die Fernbedienung enthält: Power, Eingangsauswahl, Home, Einstellungen, Steuerkreuz mit OK, Zurück/Info/Exit, Lautstärke- und Senderwippe, Stumm, Wiedergabe, Farbtasten sowie die angehakten Apps als Schnellwahl.
+Die Fernbedienung enthält: Power, Eingangsauswahl (inkl. Live TV), Home, Einstellungen, Steuerkreuz mit OK, Zurück/Info/Exit, Lautstärke- und Senderwippe, Stumm, Wiedergabe, Farbtasten sowie Apps als Schnellwahl.
+
+**Schnellwahl-Knöpfe (Apps):** In der Tabelle „Apps“ die Spalte **„Favorit“** anhaken – dann erscheinen nur diese Apps als Knöpfe. Ohne Favoriten werden alle Apps mit „In Auswahl“ angezeigt.
+
+In der Kachel-Visualisierung bleibt oben ein schmaler Streifen frei, damit Kachelname und Vergrößern-Symbol nichts verdecken.
 
 ## 7. Einschalten (Wake-on-LAN)
 
@@ -137,6 +142,8 @@ jeweils auf Port 9 und 7.
 **Einstellungen am TV** (Bezeichnungen je nach Modell):
 
 - **Allgemein → Geräte → TV-Verwaltung → „Mit Mobilgerät einschalten“ / „Über Wi-Fi einschalten“ bzw. „Über LAN einschalten“** aktivieren.
+- Bei neueren Geräten (webOS 23 und neuer) liegt die Einstellung meist unter **Einstellungen → Alle Einstellungen → Verbindung → Einstellungen für Mobilgeräte-Verbindung → „Mit Mobilgerät einschalten“**. Am schnellsten findet man sie über die **Suche** in den Einstellungen („einschalten“).
+- **MAC-Adresse aus dem Router ablesen** (Eintrag mit der IP des TVs). Die im TV-Menü angezeigte MAC kann abweichen.
 - Optional **„Schnellstart+“ (Quick Start+)** aktivieren – der TV reagiert dann schneller, verbraucht im Standby aber etwas mehr Strom.
 
 ## 8. Meldungen auf dem TV
@@ -194,7 +201,7 @@ WEBOS_SetSoundOutput(int $id, string $Value); // "tv_speaker", "external_arc", "
 ### Eingänge, Apps, Sender
 
 ```php
-WEBOS_SetInput(int $id, string $Value);   // Eingangs-ID, z. B. "HDMI_1" (siehe Tabelle „Eingänge“ im Formular)
+WEBOS_SetInput(int $id, string $Value);   // Eingangs-ID, z. B. "HDMI_1" oder "LIVETV" für Antenne/Kabel/SAT (siehe Tabelle „Eingänge“)
 WEBOS_GetInputList(int $id);
 WEBOS_LaunchApp(int $id, string $Value);  // App-ID, z. B. "netflix" (siehe Tabelle „Apps“ im Formular)
 WEBOS_CloseApp(int $id, string $Value);

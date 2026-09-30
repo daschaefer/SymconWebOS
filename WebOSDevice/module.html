@@ -316,6 +316,9 @@
 </div>
 
 <script>
+// Everything runs in its own scope: the Symcon tile runtime has its own global variables,
+// a clash (e.g. "style") would stop the whole remote. Only handleMessage is global.
+(function () {
     var state = { power: false, muted: false, volume: null, external: false, app: '', appId: '', input: -1, inputs: [], apps: [] };
     var style = window.REMOTE_STYLE || 'remote';
     if (style === 'page') { document.body.classList.add('page'); document.documentElement.classList.add('page'); }
@@ -490,6 +493,9 @@
     }
     window.addEventListener('resize', fit);
     render();
+
+    window.handleMessage = handleMessage;
+})();
 </script>
 </body>
 </html>

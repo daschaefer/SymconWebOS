@@ -525,6 +525,7 @@ class WebOSDevice extends IPSModule
         $this->RequestAction('FastForward', '');
     }
 
+    // Old name of Notify(), kept for existing scripts
     public function DisplayMessage(string $Value) {
         $this->RequestAction('Message', $Value);
     }

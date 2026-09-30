@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7.2
+### Behoben
+- Kachel-Visualisierung: Die Fernbedienung ließ sich nicht bedienen und zeigte immer „aus“. Ursache war ein Namenskonflikt mit Symcons Kachel-Skript; das Skript der Fernbedienung läuft jetzt abgeschottet.
+### Dokumentation
+- Meldungen: Unterschied zwischen `WEBOS_Notify`, `WEBOS_DisplayMessage` (alter Name, identisch) und `WEBOS_Alert` (Hinweisfenster mit Anzeigedauer) erklärt.
+
 ## 1.7.1
 - Kompakt: nutzt im WebFront (Handy) die ganze Höhe – Steuerkreuz größer, VOL/CH direkt daneben, restliche Höhe gleichmäßig verteilt; im Querformat schlank und mittig.
 

@@ -150,15 +150,24 @@ jeweils auf Port 9 und 7.
 
 | Art | Befehl | Beschreibung |
 |---|---|---|
-| Einblendung | `WEBOS_Notify` | Kurze Meldung unten am Bildschirm, verschwindet nach einigen Sekunden |
+| Einblendung | `WEBOS_Notify` | Kurze Meldung unten am Bildschirm. Die Anzeigedauer (einige Sekunden) legt der TV fest und lässt sich nicht einstellen |
 | Einblendung mit Symbol | `WEBOS_NotifyIcon` | Wie oben, mit kleinem Bild (Medienobjekt, Datei oder URL, PNG/JPG). Wird automatisch verkleinert |
 | Bild groß anzeigen | `WEBOS_ShowImage` | Zeigt ein Bild (z. B. Kamera-Snapshot) bildschirmfüllend im Browser des TVs, optional mit Text. Das Bild aktualisiert sich alle 2 Sekunden. Nach X Sekunden wechselt der TV zurück zur vorherigen App bzw. zum vorherigen Eingang |
-| Hinweisfenster | `WEBOS_Alert` | Fenster mit Titel, Text und OK-Knopf; schließt sich optional nach X Sekunden (max. 60) |
+| Hinweisfenster | `WEBOS_Alert` | Fenster mit Titel, Text und OK-Knopf; bleibt stehen, bis OK gedrückt wird, oder schließt sich nach X Sekunden (max. 60). **Das ist der Test-Knopf „Hinweisfenster (10 s)“** |
 | Variable | `Notification` | Text in die Variable „Meldung an TV“ schreiben (z. B. aus einem Ablaufplan) |
 
 **Hinweis zu Bildern:** webOS 26 zeigt Einblendungen mit Symbol (`WEBOS_NotifyIcon`) nicht an – das Modul schickt dann automatisch nur den Text. Für Bilder daher `WEBOS_ShowImage` verwenden.
 
 **So funktioniert `WEBOS_ShowImage`:** Das Modul stellt das Bild über seinen WebHook (`/hook/webos<InstanzID>`) bereit und öffnet diese Seite im Browser des TVs. Der TV muss Symcon dafür erreichen können: Die Adresse wird automatisch ermittelt (IP von Symcon, Port 3777). Läuft Symcon z. B. in Docker oder auf einem anderen Port, die Adresse im Formular unter „Symcon-Adresse für Bilder“ eintragen (z. B. `http://192.168.2.10:3777`). Hat das WebHook Control Zugangsdaten, fragt der TV-Browser danach. Das laufende Programm wird für die Anzeige unterbrochen.
+
+**Welcher Befehl wofür?**
+
+- Kurze Info, die von selbst verschwindet → `WEBOS_Notify($id, 'Text')`
+- Meldung, die eine bestimmte Zeit sichtbar sein soll → `WEBOS_Alert($id, 'Titel', 'Text', Sekunden)`
+- Meldung, die stehen bleibt, bis jemand OK drückt → `WEBOS_Alert($id, 'Titel', 'Text', 0)`
+- `WEBOS_DisplayMessage` ist der alte Name von `WEBOS_Notify` (macht genau dasselbe) und bleibt nur für bestehende Skripte erhalten.
+
+Hinweis: Bei `WEBOS_Alert` mit Sekunden wartet das Skript, bis das Fenster wieder geschlossen wird (max. 60 s).
 
 Ist ein **Standard-Symbol** eingestellt, wird es bei `WEBOS_Notify` und der Variable automatisch mitgeschickt. Meldungen erscheinen nur, wenn der TV eingeschaltet ist.
 
@@ -239,7 +248,7 @@ WEBOS_NotifyIcon(int $id, string $Message, string $Icon); // Icon: Medien-ID, Da
 WEBOS_Alert(int $id, string $Title, string $Message, int $Seconds); // 0 = bleibt bis OK
 WEBOS_ShowImage(int $id, string $Image, string $Text, int $Seconds); // Bild groß im TV-Browser, 0 = bleibt bis „Zurück“ (max. 600)
 WEBOS_ReturnFromImage(int $id);                                      // Bildanzeige beenden, zurück zur vorherigen App/Quelle
-WEBOS_DisplayMessage(int $id, string $Value);             // wie WEBOS_Notify (ältere Bezeichnung)
+WEBOS_DisplayMessage(int $id, string $Value);             // alter Name, identisch mit WEBOS_Notify
 ```
 
 ### Beispiele

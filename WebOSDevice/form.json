@@ -301,12 +301,12 @@
                     "items": [
                         {
                             "type": "Button",
-                            "caption": "Einblendung senden",
+                            "caption": "Einblendung senden (WEBOS_Notify)",
                             "onClick": "WEBOS_Notify($id, $TestMessage);"
                         },
                         {
                             "type": "Button",
-                            "caption": "Hinweisfenster (10 s)",
+                            "caption": "Hinweisfenster 10 s (WEBOS_Alert)",
                             "onClick": "WEBOS_Alert($id, 'Symcon', $TestMessage, 10);"
                         }
                     ]

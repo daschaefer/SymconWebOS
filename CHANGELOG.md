@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.3
+### Behoben
+- Log-Level „Debug“: Bei ausgeschaltetem TV landete alle ~12 Sekunden „Connection … failed“ im Meldungsfenster. Die regelmäßige Statusabfrage schreibt jetzt nur noch in den Debug-Reiter; im Meldungsfenster steht nur einmal „TV nicht erreichbar“ bzw. „TV wieder erreichbar“.
+
 ## 1.7.2
 ### Behoben
 - Kachel-Visualisierung: Die Fernbedienung ließ sich nicht bedienen und zeigte immer „aus“. Ursache war ein Namenskonflikt mit Symcons Kachel-Skript; das Skript der Fernbedienung läuft jetzt abgeschottet.

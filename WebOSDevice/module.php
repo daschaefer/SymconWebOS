@@ -7,6 +7,7 @@ class WebOSDevice extends IPSModule
     private $registered = false;
     private $msgCounter = 0;
     private $lastError = '';
+    private $quiet = false; // status polling: expected connection errors (TV off) only go to the debug tab
 
     // Signed registration manifest (LG test certificate). Accepted by webOS up to 25,
     // rejected by webOS 26+ ("blacklisted certificate") -> unsigned fallback, see buildUnsignedHandshake().
@@ -269,7 +270,21 @@ class WebOSDevice extends IPSModule
         }
 
         $on = false;
-        if ($this->lg_handshake(2)) {
+        // A switched-off TV is not reachable - that is normal, so the poll does not fill the message log.
+        // Only the change reachable <-> not reachable is logged once.
+        // The regular poll only writes to the debug tab (also with log level "Debug").
+        $this->quiet = true;
+        $reachable = $this->lg_handshake(2);
+        $wasReachable = $this->GetBuffer('Reachable');
+        if ($wasReachable !== ($reachable ? '1' : '0')) {
+            $this->SetBuffer('Reachable', $reachable ? '1' : '0');
+            if ($wasReachable !== '') {
+                $this->quiet = false;
+                $this->Log($reachable ? 'TV wieder erreichbar' : 'TV nicht erreichbar (ausgeschaltet?) - weitere Verbindungsfehler nur im Debug-Reiter');
+                $this->quiet = true;
+            }
+        }
+        if ($reachable) {
             $p = $this->ssap('ssap://com.webos.service.tvpower/power/getPowerState');
             $state = is_array($p) ? ($p['state'] ?? 'Active') : 'Active';
             $on = in_array($state, ['Active', 'Screen Off', 'Screen Saver']) && !isset($p['processing']);
@@ -282,6 +297,7 @@ class WebOSDevice extends IPSModule
             $this->setVar('ChannelName', '');
             $this->disconnect();
             $this->setTileState(['power' => false, 'app' => '', 'appId' => '', 'input' => -1]);
+            $this->quiet = false;
             return true;
         }
         $tileState = ['power' => true];
@@ -358,6 +374,7 @@ class WebOSDevice extends IPSModule
 
         $this->disconnect();
         $this->setTileState($tileState);
+        $this->quiet = false;
         return true;
     }
 
@@ -1866,7 +1883,7 @@ class WebOSDevice extends IPSModule
 
     private function Log($message) {
         $this->SendDebug('WebOS', $message, 0);
-        if($this->ReadPropertyInteger("LOGLEVEL") == 1)
+        if (!$this->quiet && $this->ReadPropertyInteger("LOGLEVEL") == 1)
             IPS_LogMessage(IPS_GetObject($this->InstanceID)['ObjectName'], $message);
     }
 }

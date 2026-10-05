@@ -61,7 +61,7 @@ Entwickelt von Daniel Schaefer ([daschaefer/SymconWebOS](https://github.com/dasc
 | Apps und Eingänge | Tabellen mit den vom TV gelesenen Apps/Eingängen (inkl. „Live TV“). „In Auswahl“ = erscheint in den Variablen „Eingang“/„App starten“ und in der Eingangsauswahl der Fernbedienung. „Favorit“ = erscheint als Schnellwahl-Knopf auf der Fernbedienung |
 | Fernbedienung (Visualisierung) | Darstellung (mit Gehäuse, Kompakt oder vollflächig), Kachel-Fernbedienung und/oder HTMLBox fürs alte WebFront (siehe Kapitel 6) |
 | Meldungen auf dem TV | Standard-Symbol für Meldungen (Medienobjekt, optional) und Symcon-Adresse für Bilder (leer = automatisch) |
-| Log-Level | `Debug` schreibt zusätzlich ins Meldungsfenster. Der Debug-Reiter der Instanz zeigt immer alle Details |
+| Log-Level | `Debug` schreibt Aktionen und Fehler zusätzlich ins Meldungsfenster (die regelmäßige Statusabfrage nicht). Der Debug-Reiter der Instanz zeigt immer alle Details. Für den Normalbetrieb „Aus“ |
 
 **Erste Einrichtung**
 
@@ -295,5 +295,6 @@ if (GetValue(IPS_GetObjectIDByIdent('Power', $tv))) {
 | App-Liste leer / „401 insufficient permissions“ | **Gerät registrieren** erneut ausführen und am TV bestätigen, danach **Eingänge und Apps neu einlesen** |
 | Einschalten klappt nicht (vor allem nach längerer Zeit) | MAC-Adresse prüfen (LAN oder WLAN, je nach Verbindung), TV-Einstellung „Mit Mobilgerät / Über Wi-Fi einschalten“ aktivieren, ggf. Broadcast-Adresse eintragen. Im Debug-Reiter steht, wohin die Pakete gesendet wurden |
 | Bild wird nicht angezeigt (`WEBOS_ShowImage`) | Im Debug-Reiter steht die geöffnete Adresse. Diese im Browser eines anderen Geräts im Heimnetz testen; ggf. „Symcon-Adresse für Bilder“ eintragen |
+| Meldungsfenster voller „Connection … failed“ | Log-Level steht auf „Debug“ (ab 1.7.3 nur noch eine Meldung beim Ausschalten). Für den Normalbetrieb Log-Level „Aus“ – alle Details zeigt weiterhin der Debug-Reiter der Instanz |
 | Lautstärke bleibt 0 | Ton läuft über ARC/eARC (Soundbar) – dann `VolumeStep` bzw. Lauter/Leiser verwenden |
 | Fernbedienungs-Kachel zeigt Variablen | Visualisierung neu laden, Häkchen „Instanz als Fernbedienung darstellen“ prüfen |

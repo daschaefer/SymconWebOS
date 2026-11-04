@@ -495,6 +495,29 @@ class WebOSDevice extends IPSModule
         $this->RequestAction('LaunchApp', $Value);
     }
 
+    // Starts an app with a contentId (deep link), e.g. a YouTube video ID
+    public function LaunchAppContent(string $AppID, string $ContentID) {
+        return $this->launchWithContent(trim($AppID), trim($ContentID));
+    }
+
+    // Plays a YouTube video: video ID or link (watch?v=, youtu.be/, shorts/, embed/, live/)
+    public function PlayYouTube(string $Video) {
+        $vid = $this->youtubeVideoId($Video);
+        if ($vid === '') {
+            $this->Log("PlayYouTube: no valid video ID in '" . $Video . "'");
+            return false;
+        }
+        $this->lastError = '';
+        if ($this->launchWithContent('youtube.leanback.v4', $vid)) {
+            return true;
+        }
+        if ($this->lastError === '') {
+            return false; // no answer (TV off?) - fallback would not help
+        }
+        $this->Log("PlayYouTube: launch with contentId rejected (" . $this->lastError . ") - opening YouTube URL");
+        return $this->ssap('ssap://system.launcher/open', ['target' => 'https://www.youtube.com/tv#/watch?v=' . $vid]) !== null;
+    }
+
     public function CloseApp(string $Value) {
         $this->RequestAction('CloseApp', $Value);
     }
@@ -1770,6 +1793,37 @@ class WebOSDevice extends IPSModule
         }
 
         return json_encode(["type" => "register", "id" => "register_0", "payload" => $payload], JSON_UNESCAPED_SLASHES);
+    }
+
+    private function launchWithContent($appId, $contentId)
+    {
+        if ($appId === '') {
+            $this->Log("LaunchAppContent: empty app ID");
+            return false;
+        }
+        $payload = ['id' => $appId];
+        if ($contentId !== '') {
+            $payload['contentId'] = $contentId;
+        }
+        $res = $this->ssap('ssap://system.launcher/launch', $payload);
+        if ($res === null) {
+            $this->Log("Could not launch $appId with content '$contentId' " . $this->lastError);
+            return false;
+        }
+        return true;
+    }
+
+    // Extracts the 11-character YouTube video ID from an ID or a YouTube link ('' if none)
+    private function youtubeVideoId($text)
+    {
+        $text = trim($text);
+        if (preg_match('/^[A-Za-z0-9_-]{11}$/', $text)) {
+            return $text;
+        }
+        if (preg_match('~(?:[?&#]v=|youtu\.be/|/shorts/|/embed/|/live/|/v/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])~', $text, $m)) {
+            return $m[1];
+        }
+        return '';
     }
 
     // Sends a ssap request and returns the payload as array (null on error/timeout)

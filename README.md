@@ -213,6 +213,8 @@ WEBOS_SetSoundOutput(int $id, string $Value); // "tv_speaker", "external_arc", "
 WEBOS_SetInput(int $id, string $Value);   // Eingangs-ID, z. B. "HDMI_1" oder "LIVETV" für Antenne/Kabel/SAT (siehe Tabelle „Eingänge“)
 WEBOS_GetInputList(int $id);
 WEBOS_LaunchApp(int $id, string $Value);  // App-ID, z. B. "netflix" (siehe Tabelle „Apps“ im Formular)
+WEBOS_LaunchAppContent(int $id, string $AppID, string $ContentID); // App mit Inhalt starten (contentId, Deep-Link)
+WEBOS_PlayYouTube(int $id, string $Video); // YouTube-Video: Video-ID oder Link (watch?v=, youtu.be/, shorts/)
 WEBOS_CloseApp(int $id, string $Value);
 WEBOS_LaunchNetflix(int $id);
 WEBOS_CloseNetflix(int $id);
@@ -269,6 +271,12 @@ IPS_Sleep(8000);                 // TV hochfahren lassen
 WEBOS_SetInput($tv, 'HDMI_3');
 WEBOS_LaunchApp($tv, 'netflix');
 
+// YouTube-Video direkt abspielen (Video-ID oder Link)
+WEBOS_PlayYouTube($tv, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+WEBOS_PlayYouTube($tv, 'dQw4w9WgXcQ');
+// gleichwertig, allgemein für Apps mit Inhalts-ID:
+WEBOS_LaunchAppContent($tv, 'youtube.leanback.v4', 'dQw4w9WgXcQ');
+
 // Im Menü navigieren
 foreach (['DOWN', 'DOWN', 'ENTER'] as $key) {
     WEBOS_SendButton($tv, $key);
@@ -295,6 +303,7 @@ if (GetValue(IPS_GetObjectIDByIdent('Power', $tv))) {
 | App-Liste leer / „401 insufficient permissions“ | **Gerät registrieren** erneut ausführen und am TV bestätigen, danach **Eingänge und Apps neu einlesen** |
 | Einschalten klappt nicht (vor allem nach längerer Zeit) | MAC-Adresse prüfen (LAN oder WLAN, je nach Verbindung), TV-Einstellung „Mit Mobilgerät / Über Wi-Fi einschalten“ aktivieren, ggf. Broadcast-Adresse eintragen. Im Debug-Reiter steht, wohin die Pakete gesendet wurden |
 | Bild wird nicht angezeigt (`WEBOS_ShowImage`) | Im Debug-Reiter steht die geöffnete Adresse. Diese im Browser eines anderen Geräts im Heimnetz testen; ggf. „Symcon-Adresse für Bilder“ eintragen |
+| YouTube startet, Video läuft aber nicht (`WEBOS_PlayYouTube`) | Video-ID prüfen (11 Zeichen). Im Debug-Reiter steht, ob der TV den Start abgelehnt hat und stattdessen die YouTube-Adresse geöffnet wurde. Altersbeschränkte oder private Videos startet YouTube am TV ggf. nicht direkt |
 | Meldungsfenster voller „Connection … failed“ | Log-Level steht auf „Debug“ (ab 1.7.3 nur noch eine Meldung beim Ausschalten). Für den Normalbetrieb Log-Level „Aus“ – alle Details zeigt weiterhin der Debug-Reiter der Instanz |
 | Lautstärke bleibt 0 | Ton läuft über ARC/eARC (Soundbar) – dann `VolumeStep` bzw. Lauter/Leiser verwenden |
 | Fernbedienungs-Kachel zeigt Variablen | Visualisierung neu laden, Häkchen „Instanz als Fernbedienung darstellen“ prüfen |

@@ -210,8 +210,8 @@ class WebOSDevice extends IPSModule
     {
         $form = json_decode(file_get_contents(__DIR__ . '/form.json'), true);
         $values = [
-            'INPUT_LIST' => array_map(function ($r) { return ['label' => $r['label'], 'id' => $r['id'] ?? '', 'appId' => $r['appId'] ?? '', 'show' => (bool)$r['show']]; }, $this->getInputs()),
-            'APP_LIST'   => array_map(function ($r) { return ['title' => $r['title'], 'id' => $r['id'] ?? '', 'show' => (bool)$r['show'], 'fav' => (bool)($r['fav'] ?? false)]; }, $this->getApps())
+            'INPUT_LIST' => array_map(function ($r) { return ['label' => $r['label'], 'alias' => $r['alias'] ?? '', 'id' => $r['id'] ?? '', 'appId' => $r['appId'] ?? '', 'show' => (bool)$r['show']]; }, $this->getInputs()),
+            'APP_LIST'   => array_map(function ($r) { return ['title' => $r['title'], 'alias' => $r['alias'] ?? '', 'id' => $r['id'] ?? '', 'show' => (bool)$r['show'], 'fav' => (bool)($r['fav'] ?? false)]; }, $this->getApps())
         ];
         $fill = function (&$items) use (&$fill, $values) {
             foreach ($items as &$item) {
@@ -337,12 +337,12 @@ class WebOSDevice extends IPSModule
             foreach ($this->getInputs() as $i => $input) {
                 if (($input['appId'] ?? '') != '' && $input['appId'] == $appId) {
                     if (!empty($input['show'])) $inputIndex = $i; // only inputs that are part of the selection
-                    $name = $input['label'];
+                    $name = $input['display'];
                 }
             }
             foreach ($this->getApps() as $app) {
                 if ($app['id'] == $appId) {
-                    $name = $app['title'];
+                    $name = $app['display'];
                 }
             }
             $this->setVar('AppName', $name);
@@ -495,6 +495,30 @@ class WebOSDevice extends IPSModule
         $this->RequestAction('LaunchApp', $Value);
     }
 
+    // Starts an app with a contentId (deep link), e.g. a YouTube video ID
+    public function LaunchAppContent(string $AppID, string $ContentID) {
+        return $this->launchWithContent(trim($AppID), trim($ContentID));
+    }
+
+    // Plays a YouTube video: video ID or link (watch?v=, youtu.be/, shorts/, embed/, live/)
+    public function PlayYouTube(string $Video) {
+        $vid = $this->youtubeVideoId($Video);
+        if ($vid === '') {
+            $this->Log("PlayYouTube: no valid video ID in '" . $Video . "'");
+            return false;
+        }
+        $this->lastError = '';
+        // YouTube expects the contentId as "v=<ID>" (tested on webOS 26; the bare ID only opens the app)
+        if ($this->launchWithContent('youtube.leanback.v4', 'v=' . $vid)) {
+            return true;
+        }
+        if ($this->lastError === '') {
+            return false; // no answer (TV off?) - fallback would not help
+        }
+        $this->Log("PlayYouTube: launch with contentId rejected (" . $this->lastError . ") - opening YouTube URL");
+        return $this->ssap('ssap://system.launcher/open', ['target' => 'https://www.youtube.com/tv#/watch?v=' . $vid]) !== null;
+    }
+
     public function CloseApp(string $Value) {
         $this->RequestAction('CloseApp', $Value);
     }
@@ -589,7 +613,7 @@ class WebOSDevice extends IPSModule
                 if (isset($inputs[$Value])) {
                     $response = $this->switchInput($inputs[$Value]['id']);
                     $this->setVar('Input', (int)$Value);
-                    $this->setTileState(['input' => (int)$Value, 'app' => $inputs[$Value]['label'], 'appId' => $inputs[$Value]['appId'] ?? '']);
+                    $this->setTileState(['input' => (int)$Value, 'app' => $inputs[$Value]['display'], 'appId' => $inputs[$Value]['appId'] ?? '']);
                 }
                 break;
             case 'AppLaunch':
@@ -597,7 +621,7 @@ class WebOSDevice extends IPSModule
                 if (isset($apps[$Value])) {
                     $response = $this->ssap('ssap://system.launcher/launch', ['id' => $apps[$Value]['id']]);
                     $this->setVar('AppLaunch', (int)$Value);
-                    $this->setTileState(['app' => $apps[$Value]['title'], 'appId' => $apps[$Value]['id'], 'input' => -1]);
+                    $this->setTileState(['app' => $apps[$Value]['display'], 'appId' => $apps[$Value]['id'], 'input' => -1]);
                 }
                 break;
             case 'RemoteKey':
@@ -1098,7 +1122,7 @@ class WebOSDevice extends IPSModule
         }
         $state['inputs'] = [];
         foreach ($this->getInputs() as $i => $input) {
-            if (!empty($input['show'])) $state['inputs'][] = [$i, $input['label']];
+            if (!empty($input['show'])) $state['inputs'][] = [$i, $input['display']];
         }
         // quick buttons: favourites; without favourites all apps "in selection"
         $apps = $this->getApps();
@@ -1108,7 +1132,7 @@ class WebOSDevice extends IPSModule
         }
         $state['apps'] = [];
         foreach ($apps as $i => $app) {
-            if ($hasFav ? !empty($app['fav']) : !empty($app['show'])) $state['apps'][] = [$i, $app['title'], ($app['id'] ?? '')];
+            if ($hasFav ? !empty($app['fav']) : !empty($app['show'])) $state['apps'][] = [$i, $app['display'], ($app['id'] ?? '')];
         }
         return $state;
     }
@@ -1289,7 +1313,7 @@ class WebOSDevice extends IPSModule
         $assoc = [[-1, 'Andere']];
         foreach ($this->getInputs() as $i => $input) {
             if (empty($input['show'])) continue;
-            $assoc[] = [$i, $input['label']];
+            $assoc[] = [$i, $input['display']];
         }
         $this->setProfileAssociations($this->inputProfileName(), 1, 'TV', $assoc);
     }
@@ -1299,7 +1323,7 @@ class WebOSDevice extends IPSModule
         $assoc = [];
         foreach ($this->getApps() as $i => $app) {
             if (empty($app['show'])) continue;
-            $assoc[] = [$i, $app['title']];
+            $assoc[] = [$i, $app['display']];
         }
         if (count($assoc) == 0) {
             $assoc[] = [-1, '–'];
@@ -1324,12 +1348,14 @@ class WebOSDevice extends IPSModule
             return false;
         }
         $show = $this->showFlags($this->getInputs());
+        $alias = $this->aliasNames($this->getInputs());
         // Live TV (antenna / cable / satellite) is not an external input - add it as first entry
         $inputs = [[
             'label' => 'Live TV',
             'id'    => 'LIVETV',
             'appId' => 'com.webos.app.livetv',
-            'show'  => $show['LIVETV'] ?? true
+            'show'  => $show['LIVETV'] ?? true,
+            'alias' => $alias['LIVETV'] ?? ''
         ]];
         foreach ($p['devices'] as $d) {
             if (!isset($d['id'])) continue;
@@ -1337,7 +1363,8 @@ class WebOSDevice extends IPSModule
                 'label' => ($d['label'] ?? $d['id']),
                 'id'    => $d['id'],
                 'appId' => ($d['appId'] ?? ''),
-                'show'  => $show[$d['id']] ?? true // new entries are shown by default
+                'show'  => $show[$d['id']] ?? true, // new entries are shown by default
+                'alias' => $alias[$d['id']] ?? ''
             ];
         }
         return $this->saveList('INPUT_LIST', $inputs);
@@ -1362,7 +1389,9 @@ class WebOSDevice extends IPSModule
         $apps = array_slice($apps, 0, 100);
         $show = $this->showFlags($this->getApps());
         $fav = $this->showFlags($this->getApps(), 'fav');
+        $alias = $this->aliasNames($this->getApps());
         foreach ($apps as &$app) {
+            $app['alias'] = $alias[$app['id']] ?? '';
             $app['show'] = $show[$app['id']] ?? true;  // new entries are shown by default
             $app['fav'] = $fav[$app['id']] ?? false;
         }
@@ -1395,11 +1424,13 @@ class WebOSDevice extends IPSModule
         // check boxes (show, fav) by id (if the form delivered ids) or by position
         $keys = ['show' => true, 'fav' => false];
         $byId = [];
+        $aliasById = [];
         foreach ($rows as $row) {
             if (!is_array($row) || !isset($row['id'])) continue;
             foreach ($keys as $key => $default) {
                 if (array_key_exists($key, $row)) $byId[$key][$row['id']] = (bool)$row[$key];
             }
+            if (array_key_exists('alias', $row)) $aliasById[$row['id']] = trim((string)$row['alias']);
         }
         $list = [];
         foreach ($data as $i => $item) {
@@ -1414,9 +1445,18 @@ class WebOSDevice extends IPSModule
                     $item[$key] = (bool)($item[$key] ?? $default);
                 }
             }
+            // own name (column "Eigener Name"): by id from the form, otherwise from the stored data
+            if ($id !== '' && isset($aliasById[$id])) {
+                $item['alias'] = $aliasById[$id];
+            } elseif (isset($rows[$i]) && is_array($rows[$i]) && !isset($rows[$i]['id']) && array_key_exists('alias', $rows[$i])) {
+                $item['alias'] = trim((string)$rows[$i]['alias']);
+            } else {
+                $item['alias'] = trim((string)($item['alias'] ?? ''));
+            }
             $name = trim((string)($item[$NameKey] ?? ''));
             if ($name === '') $name = $id !== '' ? $id : ('#' . ($i + 1));
             $item[$NameKey] = $name;
+            $item['display'] = $item['alias'] !== '' ? $item['alias'] : $name; // shown in selection, tile and WebFront
             $list[] = $item;
         }
         return $list;
@@ -1430,6 +1470,16 @@ class WebOSDevice extends IPSModule
             if (isset($row['id'])) $flags[$row['id']] = !empty($row[$Key]);
         }
         return $flags;
+    }
+
+    // id => own name of an existing list (kept when the list is read again from the TV)
+    private function aliasNames($list)
+    {
+        $names = [];
+        foreach ($list as $row) {
+            if (isset($row['id']) && trim((string)($row['alias'] ?? '')) !== '') $names[$row['id']] = trim((string)$row['alias']);
+        }
+        return $names;
     }
 
     // Stores a list (data in the attribute, complete rows in the form property).
@@ -1770,6 +1820,37 @@ class WebOSDevice extends IPSModule
         }
 
         return json_encode(["type" => "register", "id" => "register_0", "payload" => $payload], JSON_UNESCAPED_SLASHES);
+    }
+
+    private function launchWithContent($appId, $contentId)
+    {
+        if ($appId === '') {
+            $this->Log("LaunchAppContent: empty app ID");
+            return false;
+        }
+        $payload = ['id' => $appId];
+        if ($contentId !== '') {
+            $payload['contentId'] = $contentId;
+        }
+        $res = $this->ssap('ssap://system.launcher/launch', $payload);
+        if ($res === null) {
+            $this->Log("Could not launch $appId with content '$contentId' " . $this->lastError);
+            return false;
+        }
+        return true;
+    }
+
+    // Extracts the 11-character YouTube video ID from an ID or a YouTube link ('' if none)
+    private function youtubeVideoId($text)
+    {
+        $text = trim($text);
+        if (preg_match('/^[A-Za-z0-9_-]{11}$/', $text)) {
+            return $text;
+        }
+        if (preg_match('~(?:[?&#]v=|youtu\.be/|/shorts/|/embed/|/live/|/v/)([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])~', $text, $m)) {
+            return $m[1];
+        }
+        return '';
     }
 
     // Sends a ssap request and returns the payload as array (null on error/timeout)

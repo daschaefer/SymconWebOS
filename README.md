@@ -58,7 +58,7 @@ Entwickelt von Daniel Schaefer ([daschaefer/SymconWebOS](https://github.com/dasc
 | Port | `3001` (verschlüsselt, Standard). `3000` nur bei sehr alten Geräten |
 | Status abfragen alle | Intervall der Statusabfrage in Sekunden, `0` = aus (Standard 10) |
 | Variablen | Häkchen für die Variablen, die unter der Instanz angelegt werden sollen (siehe Kapitel 5) |
-| Apps und Eingänge | Tabellen mit den vom TV gelesenen Apps/Eingängen (inkl. „Live TV“). „In Auswahl“ = erscheint in den Variablen „Eingang“/„App starten“ und in der Eingangsauswahl der Fernbedienung. „Favorit“ = erscheint als Schnellwahl-Knopf auf der Fernbedienung |
+| Apps und Eingänge | Tabellen mit den vom TV gelesenen Apps/Eingängen (inkl. „Live TV“). „In Auswahl“ = erscheint in den Variablen „Eingang“/„App starten“ und in der Eingangsauswahl der Fernbedienung. „Favorit“ = erscheint als Schnellwahl-Knopf auf der Fernbedienung. „Eigener Name“ = kürzerer Name (z. B. „ARD“ statt „ARD Mediathek“) für Auswahl, Fernbedienung und Schnellwahl; leer = Name vom TV. Bleibt beim erneuten Einlesen erhalten |
 | Fernbedienung (Visualisierung) | Darstellung (mit Gehäuse, Kompakt oder vollflächig), Kachel-Fernbedienung und/oder HTMLBox fürs alte WebFront (siehe Kapitel 6) |
 | Meldungen auf dem TV | Standard-Symbol für Meldungen (Medienobjekt, optional) und Symcon-Adresse für Bilder (leer = automatisch) |
 | Log-Level | `Debug` schreibt Aktionen und Fehler zusätzlich ins Meldungsfenster (die regelmäßige Statusabfrage nicht). Der Debug-Reiter der Instanz zeigt immer alle Details. Für den Normalbetrieb „Aus“ |
@@ -124,7 +124,7 @@ Alle Variablen werden per Häkchen im Formular angelegt bzw. entfernt.
 
 Die Fernbedienung enthält: Power, Eingangsauswahl (inkl. Live TV), Home, Einstellungen, Steuerkreuz mit OK, Zurück/Info/Exit, Lautstärke- und Senderwippe, Stumm, Wiedergabe, Farbtasten sowie Apps als Schnellwahl.
 
-**Schnellwahl-Knöpfe (Apps):** In der Tabelle „Apps“ die Spalte **„Favorit“** anhaken – dann erscheinen nur diese Apps als Knöpfe. Ohne Favoriten werden alle Apps mit „In Auswahl“ angezeigt.
+**Schnellwahl-Knöpfe (Apps):** In der Tabelle „Apps“ die Spalte **„Favorit“** anhaken – dann erscheinen nur diese Apps als Knöpfe. Ohne Favoriten werden alle Apps mit „In Auswahl“ angezeigt. Ist ein Name zu lang, in der Spalte **„Eigener Name“** einen kürzeren eintragen.
 
 In der Kachel-Visualisierung bleibt oben ein schmaler Streifen frei, damit Kachelname und Vergrößern-Symbol nichts verdecken.
 
@@ -213,6 +213,8 @@ WEBOS_SetSoundOutput(int $id, string $Value); // "tv_speaker", "external_arc", "
 WEBOS_SetInput(int $id, string $Value);   // Eingangs-ID, z. B. "HDMI_1" oder "LIVETV" für Antenne/Kabel/SAT (siehe Tabelle „Eingänge“)
 WEBOS_GetInputList(int $id);
 WEBOS_LaunchApp(int $id, string $Value);  // App-ID, z. B. "netflix" (siehe Tabelle „Apps“ im Formular)
+WEBOS_LaunchAppContent(int $id, string $AppID, string $ContentID); // App mit Inhalt starten (contentId, Deep-Link)
+WEBOS_PlayYouTube(int $id, string $Video); // YouTube-Video: Video-ID oder Link (watch?v=, youtu.be/, shorts/)
 WEBOS_CloseApp(int $id, string $Value);
 WEBOS_LaunchNetflix(int $id);
 WEBOS_CloseNetflix(int $id);
@@ -269,6 +271,12 @@ IPS_Sleep(8000);                 // TV hochfahren lassen
 WEBOS_SetInput($tv, 'HDMI_3');
 WEBOS_LaunchApp($tv, 'netflix');
 
+// YouTube-Video direkt abspielen (Video-ID oder Link)
+WEBOS_PlayYouTube($tv, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+WEBOS_PlayYouTube($tv, 'dQw4w9WgXcQ');
+// gleichwertig, allgemein für Apps mit Inhalts-ID:
+WEBOS_LaunchAppContent($tv, 'youtube.leanback.v4', 'v=dQw4w9WgXcQ'); // YouTube erwartet "v=" vor der ID
+
 // Im Menü navigieren
 foreach (['DOWN', 'DOWN', 'ENTER'] as $key) {
     WEBOS_SendButton($tv, $key);
@@ -295,6 +303,7 @@ if (GetValue(IPS_GetObjectIDByIdent('Power', $tv))) {
 | App-Liste leer / „401 insufficient permissions“ | **Gerät registrieren** erneut ausführen und am TV bestätigen, danach **Eingänge und Apps neu einlesen** |
 | Einschalten klappt nicht (vor allem nach längerer Zeit) | MAC-Adresse prüfen (LAN oder WLAN, je nach Verbindung), TV-Einstellung „Mit Mobilgerät / Über Wi-Fi einschalten“ aktivieren, ggf. Broadcast-Adresse eintragen. Im Debug-Reiter steht, wohin die Pakete gesendet wurden |
 | Bild wird nicht angezeigt (`WEBOS_ShowImage`) | Im Debug-Reiter steht die geöffnete Adresse. Diese im Browser eines anderen Geräts im Heimnetz testen; ggf. „Symcon-Adresse für Bilder“ eintragen |
+| YouTube startet, Video läuft aber nicht (`WEBOS_PlayYouTube`) | Video-ID prüfen (11 Zeichen). Im Debug-Reiter steht, ob der TV den Start abgelehnt hat und stattdessen die YouTube-Adresse geöffnet wurde. Altersbeschränkte oder private Videos startet YouTube am TV ggf. nicht direkt |
 | Meldungsfenster voller „Connection … failed“ | Log-Level steht auf „Debug“ (ab 1.7.3 nur noch eine Meldung beim Ausschalten). Für den Normalbetrieb Log-Level „Aus“ – alle Details zeigt weiterhin der Debug-Reiter der Instanz |
 | Lautstärke bleibt 0 | Ton läuft über ARC/eARC (Soundbar) – dann `VolumeStep` bzw. Lauter/Leiser verwenden |
 | Fernbedienungs-Kachel zeigt Variablen | Visualisierung neu laden, Häkchen „Instanz als Fernbedienung darstellen“ prüfen |

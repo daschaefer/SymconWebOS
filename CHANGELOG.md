@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.7.5
+### Neu
+- Tabellen „Apps“ und „Eingänge“: Spalte **„Eigener Name“**, z. B. „ARD“ statt „ARD Mediathek“. Wird in den Variablen „Eingang“/„App starten“, „Aktuelle App“, in der Fernbedienung und bei den Schnellwahl-Knöpfen verwendet; leer = Name vom TV. Bleibt beim erneuten Einlesen erhalten.
+
+## 1.7.4
+### Neu
+- `WEBOS_PlayYouTube`: YouTube-Video direkt starten – Video-ID oder kompletter Link (`watch?v=`, `youtu.be/`, `shorts/`, `embed/`, `live/`). Die YouTube-App erwartet die Inhalts-ID als `v=<ID>` (am TV mit webOS 26 getestet). Lehnt der TV den Start mit Video-ID ab, wird die YouTube-Adresse geöffnet.
+- `WEBOS_LaunchAppContent`: beliebige App mit Inhalts-ID (contentId) starten, z. B. für Deep-Links.
+### Dokumentation
+- README: neue Funktionen in der Befehlsreferenz, Beispiel für YouTube.
+
 ## 1.7.3
 ### Behoben
 - Log-Level „Debug“: Bei ausgeschaltetem TV landete alle ~12 Sekunden „Connection … failed“ im Meldungsfenster. Die regelmäßige Statusabfrage schreibt jetzt nur noch in den Debug-Reiter; im Meldungsfenster steht nur einmal „TV nicht erreichbar“ bzw. „TV wieder erreichbar“.

@@ -2,7 +2,7 @@
 
 ## 1.7.4
 ### Neu
-- `WEBOS_PlayYouTube`: YouTube-Video direkt starten – Video-ID oder kompletter Link (`watch?v=`, `youtu.be/`, `shorts/`, `embed/`, `live/`). Lehnt der TV den Start mit Video-ID ab, wird die YouTube-Adresse geöffnet.
+- `WEBOS_PlayYouTube`: YouTube-Video direkt starten – Video-ID oder kompletter Link (`watch?v=`, `youtu.be/`, `shorts/`, `embed/`, `live/`). Die YouTube-App erwartet die Inhalts-ID als `v=<ID>` (am TV mit webOS 26 getestet). Lehnt der TV den Start mit Video-ID ab, wird die YouTube-Adresse geöffnet.
 - `WEBOS_LaunchAppContent`: beliebige App mit Inhalts-ID (contentId) starten, z. B. für Deep-Links.
 ### Dokumentation
 - README: neue Funktionen in der Befehlsreferenz, Beispiel für YouTube.

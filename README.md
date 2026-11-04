@@ -275,7 +275,7 @@ WEBOS_LaunchApp($tv, 'netflix');
 WEBOS_PlayYouTube($tv, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
 WEBOS_PlayYouTube($tv, 'dQw4w9WgXcQ');
 // gleichwertig, allgemein für Apps mit Inhalts-ID:
-WEBOS_LaunchAppContent($tv, 'youtube.leanback.v4', 'dQw4w9WgXcQ');
+WEBOS_LaunchAppContent($tv, 'youtube.leanback.v4', 'v=dQw4w9WgXcQ'); // YouTube erwartet "v=" vor der ID
 
 // Im Menü navigieren
 foreach (['DOWN', 'DOWN', 'ENTER'] as $key) {

@@ -508,7 +508,8 @@ class WebOSDevice extends IPSModule
             return false;
         }
         $this->lastError = '';
-        if ($this->launchWithContent('youtube.leanback.v4', $vid)) {
+        // YouTube expects the contentId as "v=<ID>" (tested on webOS 26; the bare ID only opens the app)
+        if ($this->launchWithContent('youtube.leanback.v4', 'v=' . $vid)) {
             return true;
         }
         if ($this->lastError === '') {

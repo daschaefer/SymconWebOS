@@ -94,7 +94,7 @@
             "items": [
                 {
                     "type": "Label",
-                    "caption": "Die Listen werden mit \"Eingänge und Apps neu einlesen\" vom TV geladen. \"In Auswahl\" = erscheint in den Variablen \"Eingang\" bzw. \"App starten\". \"Favorit\" = erscheint als Schnellwahl-Knopf auf der Fernbedienung (ohne Favoriten: alle Apps \"In Auswahl\"). Danach \"Übernehmen\" klicken."
+                    "caption": "Die Listen werden mit \"Eingänge und Apps neu einlesen\" vom TV geladen. \"In Auswahl\" = erscheint in den Variablen \"Eingang\" bzw. \"App starten\". \"Favorit\" = erscheint als Schnellwahl-Knopf auf der Fernbedienung (ohne Favoriten: alle Apps \"In Auswahl\"). \"Eigener Name\" = kürzerer Name für Auswahl, Fernbedienung und Schnellwahl (leer = Name vom TV). Danach \"Übernehmen\" klicken."
                 },
                 {
                     "type": "List",
@@ -108,6 +108,16 @@
                             "caption": "Name",
                             "name": "label",
                             "width": "auto",
+                            "save": true
+                        },
+                        {
+                            "caption": "Eigener Name",
+                            "name": "alias",
+                            "width": "180px",
+                            "add": "",
+                            "edit": {
+                                "type": "ValidationTextBox"
+                            },
                             "save": true
                         },
                         {
@@ -145,6 +155,16 @@
                             "caption": "Name",
                             "name": "title",
                             "width": "auto",
+                            "save": true
+                        },
+                        {
+                            "caption": "Eigener Name",
+                            "name": "alias",
+                            "width": "180px",
+                            "add": "",
+                            "edit": {
+                                "type": "ValidationTextBox"
+                            },
                             "save": true
                         },
                         {

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.7.5
+### Neu
+- Tabellen „Apps“ und „Eingänge“: Spalte **„Eigener Name“**, z. B. „ARD“ statt „ARD Mediathek“. Wird in den Variablen „Eingang“/„App starten“, „Aktuelle App“, in der Fernbedienung und bei den Schnellwahl-Knöpfen verwendet; leer = Name vom TV. Bleibt beim erneuten Einlesen erhalten.
+
 ## 1.7.4
 ### Neu
 - `WEBOS_PlayYouTube`: YouTube-Video direkt starten – Video-ID oder kompletter Link (`watch?v=`, `youtu.be/`, `shorts/`, `embed/`, `live/`). Die YouTube-App erwartet die Inhalts-ID als `v=<ID>` (am TV mit webOS 26 getestet). Lehnt der TV den Start mit Video-ID ab, wird die YouTube-Adresse geöffnet.

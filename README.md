@@ -58,7 +58,7 @@ Entwickelt von Daniel Schaefer ([daschaefer/SymconWebOS](https://github.com/dasc
 | Port | `3001` (verschlüsselt, Standard). `3000` nur bei sehr alten Geräten |
 | Status abfragen alle | Intervall der Statusabfrage in Sekunden, `0` = aus (Standard 10) |
 | Variablen | Häkchen für die Variablen, die unter der Instanz angelegt werden sollen (siehe Kapitel 5) |
-| Apps und Eingänge | Tabellen mit den vom TV gelesenen Apps/Eingängen (inkl. „Live TV“). „In Auswahl“ = erscheint in den Variablen „Eingang“/„App starten“ und in der Eingangsauswahl der Fernbedienung. „Favorit“ = erscheint als Schnellwahl-Knopf auf der Fernbedienung |
+| Apps und Eingänge | Tabellen mit den vom TV gelesenen Apps/Eingängen (inkl. „Live TV“). „In Auswahl“ = erscheint in den Variablen „Eingang“/„App starten“ und in der Eingangsauswahl der Fernbedienung. „Favorit“ = erscheint als Schnellwahl-Knopf auf der Fernbedienung. „Eigener Name“ = kürzerer Name (z. B. „ARD“ statt „ARD Mediathek“) für Auswahl, Fernbedienung und Schnellwahl; leer = Name vom TV. Bleibt beim erneuten Einlesen erhalten |
 | Fernbedienung (Visualisierung) | Darstellung (mit Gehäuse, Kompakt oder vollflächig), Kachel-Fernbedienung und/oder HTMLBox fürs alte WebFront (siehe Kapitel 6) |
 | Meldungen auf dem TV | Standard-Symbol für Meldungen (Medienobjekt, optional) und Symcon-Adresse für Bilder (leer = automatisch) |
 | Log-Level | `Debug` schreibt Aktionen und Fehler zusätzlich ins Meldungsfenster (die regelmäßige Statusabfrage nicht). Der Debug-Reiter der Instanz zeigt immer alle Details. Für den Normalbetrieb „Aus“ |
@@ -124,7 +124,7 @@ Alle Variablen werden per Häkchen im Formular angelegt bzw. entfernt.
 
 Die Fernbedienung enthält: Power, Eingangsauswahl (inkl. Live TV), Home, Einstellungen, Steuerkreuz mit OK, Zurück/Info/Exit, Lautstärke- und Senderwippe, Stumm, Wiedergabe, Farbtasten sowie Apps als Schnellwahl.
 
-**Schnellwahl-Knöpfe (Apps):** In der Tabelle „Apps“ die Spalte **„Favorit“** anhaken – dann erscheinen nur diese Apps als Knöpfe. Ohne Favoriten werden alle Apps mit „In Auswahl“ angezeigt.
+**Schnellwahl-Knöpfe (Apps):** In der Tabelle „Apps“ die Spalte **„Favorit“** anhaken – dann erscheinen nur diese Apps als Knöpfe. Ohne Favoriten werden alle Apps mit „In Auswahl“ angezeigt. Ist ein Name zu lang, in der Spalte **„Eigener Name“** einen kürzeren eintragen.
 
 In der Kachel-Visualisierung bleibt oben ein schmaler Streifen frei, damit Kachelname und Vergrößern-Symbol nichts verdecken.
 
